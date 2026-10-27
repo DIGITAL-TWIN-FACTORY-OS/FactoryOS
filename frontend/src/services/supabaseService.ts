@@ -651,14 +651,20 @@ export async function seedDefaultProfilesToDb(): Promise<ManagedUser[]> {
 
 
 /**
- * 10. Room & Factory Layout Preset Configurations with Database & Local Persistence
+ * 10. Room & Factory Layout Preset Configurations with Independent Machines & Blueprints
  */
 export interface LayoutPreset {
   id: string;
   name: string;
   description: string;
-  roomFilter?: string; // "all", "machining", "robotics", "thermal"
-  positions: Record<string, { x: string; y: string; width?: number; height?: number; isLocked?: boolean }>;
+  roomFilter?: string; // "all", "machining", "robotics", "thermal", "custom"
+  blueprint?: string | null;
+  blueprintScale?: number;
+  blueprintOffsetX?: number;
+  blueprintOffsetY?: number;
+  blueprintOpacity?: number;
+  blueprintFit?: "contain" | "cover";
+  machines: Machine[]; // Fully independent array of machines belonging strictly to this layout!
   isDefault?: boolean;
   createdAt: string;
 }
@@ -671,16 +677,214 @@ export const DEFAULT_LAYOUT_PRESETS: LayoutPreset[] = [
     roomFilter: "all",
     isDefault: true,
     createdAt: "2026-10-28",
-    positions: {
-      "M-01": { x: "8%", y: "12%", width: 145, height: 95 },
-      "M-02": { x: "28%", y: "12%", width: 135, height: 92 },
-      "M-03": { x: "48%", y: "12%", width: 135, height: 92 },
-      "M-04": { x: "68%", y: "12%", width: 135, height: 92 },
-      "M-05": { x: "24%", y: "44%", width: 135, height: 92 },
-      "M-07": { x: "54%", y: "44%", width: 135, height: 92 },
-      "M-09": { x: "26%", y: "74%", width: 135, height: 92 },
-      "M-11": { x: "50%", y: "74%", width: 140, height: 95 },
-    },
+    blueprint: null,
+    blueprintScale: 1,
+    blueprintOffsetX: 0,
+    blueprintOffsetY: 0,
+    blueprintOpacity: 0.65,
+    blueprintFit: "contain",
+    machines: [
+      {
+        id: "M-01",
+        name: "Matsuura MC-510V Milling Center",
+        type: "CNC Milling",
+        status: "running",
+        x: "8%",
+        y: "12%",
+        width: 145,
+        height: 95,
+        temperature: 52.4,
+        vibration: 2.1,
+        current: 8.4,
+        speed: 1450,
+        runtime: 7.2,
+        health: 96,
+        failureProbability: 4,
+        failureTime: "48 days",
+        location: "Machining Bay 1",
+        department: "Matsuura Milling Cell",
+        installedOn: "12 Jan 2024",
+        lastMaintenance: "02 Oct 2026",
+        recommendation: "Operational vibration and coolant within nominal range.",
+        diagnosis: "Nominal operational envelope verified.",
+        flankWearMm: 0.082,
+      },
+      {
+        id: "M-02",
+        name: "CNC Turning Lathe",
+        type: "CNC Turning",
+        status: "running",
+        x: "28%",
+        y: "12%",
+        width: 135,
+        height: 92,
+        temperature: 55.1,
+        vibration: 2.4,
+        current: 9.1,
+        speed: 1380,
+        runtime: 6.8,
+        health: 94,
+        failureProbability: 6,
+        failureTime: "42 days",
+        location: "Machining Bay 1",
+        department: "CNC Turning",
+        installedOn: "18 Jan 2024",
+        lastMaintenance: "01 Oct 2026",
+        recommendation: "Spindle load stable.",
+        diagnosis: "Nominal operational envelope.",
+        flankWearMm: 0.095,
+      },
+      {
+        id: "M-03",
+        name: "Multi-Spindle Drilling Machine",
+        type: "Drilling",
+        status: "running",
+        x: "48%",
+        y: "12%",
+        width: 135,
+        height: 92,
+        temperature: 50.8,
+        vibration: 2.0,
+        current: 7.8,
+        speed: 1320,
+        runtime: 7.5,
+        health: 95,
+        failureProbability: 5,
+        failureTime: "45 days",
+        location: "Machining Bay 1",
+        department: "Drilling & Bore",
+        installedOn: "20 Jan 2024",
+        lastMaintenance: "03 Oct 2026",
+        recommendation: "Hydraulic guide pressure nominal.",
+        diagnosis: "Nominal operational envelope.",
+        flankWearMm: 0.078,
+      },
+      {
+        id: "M-04",
+        name: "Surface & Spindle Grinding Cell",
+        type: "Grinding",
+        status: "warning",
+        x: "68%",
+        y: "12%",
+        width: 135,
+        height: 92,
+        temperature: 68.3,
+        vibration: 3.4,
+        current: 11.2,
+        speed: 1800,
+        runtime: 11.2,
+        health: 78,
+        failureProbability: 22,
+        failureTime: "18 days",
+        location: "Machining Bay 2",
+        department: "Precision Grinding",
+        installedOn: "05 Feb 2024",
+        lastMaintenance: "26 Sep 2026",
+        recommendation: "Check wheel dressing and hydraulic spindle bearing.",
+        diagnosis: "Slight harmonic frequency elevation observed on spindle.",
+        flankWearMm: 0.220,
+      },
+      {
+        id: "M-05",
+        name: "Robotic Assembly Cell Alpha",
+        type: "Assembly Robot",
+        status: "running",
+        x: "24%",
+        y: "44%",
+        width: 135,
+        height: 92,
+        temperature: 46.2,
+        vibration: 1.8,
+        current: 6.2,
+        speed: 950,
+        runtime: 8.0,
+        health: 98,
+        failureProbability: 2,
+        failureTime: "60 days",
+        location: "Assembly Line",
+        department: "Robotics Cell",
+        installedOn: "14 Feb 2024",
+        lastMaintenance: "04 Oct 2026",
+        recommendation: "Joint harmonic drive torque verified.",
+        diagnosis: "Nominal operational envelope.",
+        flankWearMm: 0.045,
+      },
+      {
+        id: "M-07",
+        name: "High-Frequency Welding Robot",
+        type: "Welding Robot",
+        status: "warning",
+        x: "54%",
+        y: "44%",
+        width: 135,
+        height: 92,
+        temperature: 71.0,
+        vibration: 3.6,
+        current: 12.8,
+        speed: 1100,
+        runtime: 9.4,
+        health: 74,
+        failureProbability: 26,
+        failureTime: "14 days",
+        location: "Welding Bay",
+        department: "Thermal & Arc Joining",
+        installedOn: "10 Mar 2024",
+        lastMaintenance: "28 Sep 2026",
+        recommendation: "Inspect torch tip nozzle and wire feeder friction.",
+        diagnosis: "Elevated thermal dissipation on arc feed assembly.",
+        flankWearMm: 0.260,
+      },
+      {
+        id: "M-09",
+        name: "Induction Heat Treatment Furnace",
+        type: "Heat Treatment",
+        status: "critical",
+        x: "26%",
+        y: "74%",
+        width: 135,
+        height: 92,
+        temperature: 88.5,
+        vibration: 4.8,
+        current: 16.4,
+        speed: 720,
+        runtime: 14.1,
+        health: 54,
+        failureProbability: 46,
+        failureTime: "4 days",
+        location: "Thermal Treatment",
+        department: "Thermal Processing",
+        installedOn: "01 Feb 2024",
+        lastMaintenance: "15 Sep 2026",
+        recommendation: "Schedule immediate coil inspection and coolant purge.",
+        diagnosis: "Thermal barrier degradation and high induction coil eddy current.",
+        flankWearMm: 0.485,
+      },
+      {
+        id: "M-11",
+        name: "Automated Packaging Station",
+        type: "Packaging",
+        status: "critical",
+        x: "50%",
+        y: "74%",
+        width: 140,
+        height: 95,
+        temperature: 64.0,
+        vibration: 4.6,
+        current: 13.9,
+        speed: 1650,
+        runtime: 12.5,
+        health: 58,
+        failureProbability: 42,
+        failureTime: "5 days",
+        location: "Packaging Bay",
+        department: "End-of-Line Logistics",
+        installedOn: "25 Feb 2024",
+        lastMaintenance: "20 Sep 2026",
+        recommendation: "Inspect strap tensioner and conveyor motor bearing.",
+        diagnosis: "Mechanical friction and belt slippage threshold exceeded.",
+        flankWearMm: 0.420,
+      },
+    ],
   },
   {
     id: "preset-machining",
@@ -689,12 +893,114 @@ export const DEFAULT_LAYOUT_PRESETS: LayoutPreset[] = [
     roomFilter: "machining",
     isDefault: true,
     createdAt: "2026-10-28",
-    positions: {
-      "M-01": { x: "15%", y: "25%", width: 155, height: 105 },
-      "M-02": { x: "40%", y: "25%", width: 145, height: 100 },
-      "M-03": { x: "65%", y: "25%", width: 145, height: 100 },
-      "M-04": { x: "40%", y: "65%", width: 145, height: 100 },
-    },
+    blueprint: null,
+    blueprintScale: 1,
+    blueprintOffsetX: 0,
+    blueprintOffsetY: 0,
+    blueprintOpacity: 0.65,
+    blueprintFit: "contain",
+    machines: [
+      {
+        id: "MB-01",
+        name: "Matsuura MC-510V Milling Center",
+        type: "CNC Milling",
+        status: "running",
+        x: "15%",
+        y: "22%",
+        width: 155,
+        height: 105,
+        temperature: 52.4,
+        vibration: 2.1,
+        current: 8.4,
+        speed: 1450,
+        runtime: 7.2,
+        health: 96,
+        failureProbability: 4,
+        failureTime: "48 days",
+        location: "Machining Bay 1",
+        department: "Heavy Milling Cell",
+        installedOn: "12 Jan 2024",
+        lastMaintenance: "02 Oct 2026",
+        recommendation: "Operational vibration and coolant within nominal range.",
+        diagnosis: "Nominal operational envelope verified.",
+        flankWearMm: 0.082,
+      },
+      {
+        id: "MB-02",
+        name: "Haas VF-2 Vertical Machining Center",
+        type: "CNC Milling",
+        status: "running",
+        x: "42%",
+        y: "22%",
+        width: 145,
+        height: 100,
+        temperature: 54.2,
+        vibration: 2.3,
+        current: 8.9,
+        speed: 1400,
+        runtime: 6.5,
+        health: 95,
+        failureProbability: 5,
+        failureTime: "44 days",
+        location: "Machining Bay 1",
+        department: "Vertical Milling",
+        installedOn: "18 Jan 2024",
+        lastMaintenance: "01 Oct 2026",
+        recommendation: "Spindle load stable.",
+        diagnosis: "Nominal operational envelope.",
+        flankWearMm: 0.091,
+      },
+      {
+        id: "MB-03",
+        name: "Mazak Quick Turn 250 Lathe",
+        type: "CNC Turning",
+        status: "running",
+        x: "68%",
+        y: "22%",
+        width: 145,
+        height: 100,
+        temperature: 51.5,
+        vibration: 2.0,
+        current: 7.9,
+        speed: 1350,
+        runtime: 7.1,
+        health: 96,
+        failureProbability: 4,
+        failureTime: "50 days",
+        location: "Machining Bay 1",
+        department: "Precision Turning",
+        installedOn: "20 Jan 2024",
+        lastMaintenance: "03 Oct 2026",
+        recommendation: "Turret index alignment nominal.",
+        diagnosis: "Nominal operational envelope.",
+        flankWearMm: 0.075,
+      },
+      {
+        id: "MB-04",
+        name: "Makino a51nx Horizontal Machining",
+        type: "Horizontal Milling",
+        status: "warning",
+        x: "42%",
+        y: "62%",
+        width: 145,
+        height: 100,
+        temperature: 66.8,
+        vibration: 3.2,
+        current: 11.5,
+        speed: 1650,
+        runtime: 10.4,
+        health: 79,
+        failureProbability: 21,
+        failureTime: "20 days",
+        location: "Machining Bay 1",
+        department: "Horizontal Milling",
+        installedOn: "05 Feb 2024",
+        lastMaintenance: "26 Sep 2026",
+        recommendation: "Monitor pallet changer hydraulics and spindle chiller.",
+        diagnosis: "Moderate cutting load current elevation.",
+        flankWearMm: 0.210,
+      },
+    ],
   },
   {
     id: "preset-robotics",
@@ -703,11 +1009,89 @@ export const DEFAULT_LAYOUT_PRESETS: LayoutPreset[] = [
     roomFilter: "robotics",
     isDefault: true,
     createdAt: "2026-10-28",
-    positions: {
-      "M-05": { x: "25%", y: "35%", width: 160, height: 110 },
-      "M-07": { x: "60%", y: "35%", width: 160, height: 110 },
-      "M-11": { x: "42%", y: "70%", width: 150, height: 100 },
-    },
+    blueprint: null,
+    blueprintScale: 1,
+    blueprintOffsetX: 0,
+    blueprintOffsetY: 0,
+    blueprintOpacity: 0.65,
+    blueprintFit: "contain",
+    machines: [
+      {
+        id: "RB-01",
+        name: "KUKA KR-10 Cybertech 6-Axis",
+        type: "Industrial Robotics",
+        status: "running",
+        x: "22%",
+        y: "30%",
+        width: 160,
+        height: 110,
+        temperature: 46.2,
+        vibration: 1.8,
+        current: 6.2,
+        speed: 950,
+        runtime: 8.0,
+        health: 98,
+        failureProbability: 2,
+        failureTime: "60 days",
+        location: "Robotics Cell",
+        department: "Robotic Articulation",
+        installedOn: "14 Feb 2024",
+        lastMaintenance: "04 Oct 2026",
+        recommendation: "Joint harmonic drive torque verified.",
+        diagnosis: "Nominal operational envelope.",
+        flankWearMm: 0.045,
+      },
+      {
+        id: "RB-02",
+        name: "Fanuc ARC Mate 120iD Welding Cell",
+        type: "Welding Robot",
+        status: "warning",
+        x: "58%",
+        y: "30%",
+        width: 160,
+        height: 110,
+        temperature: 71.0,
+        vibration: 3.6,
+        current: 12.8,
+        speed: 1100,
+        runtime: 9.4,
+        health: 74,
+        failureProbability: 26,
+        failureTime: "14 days",
+        location: "Robotics Cell",
+        department: "Thermal & Arc Joining",
+        installedOn: "10 Mar 2024",
+        lastMaintenance: "28 Sep 2026",
+        recommendation: "Inspect torch tip nozzle and wire feeder friction.",
+        diagnosis: "Elevated thermal dissipation on arc feed assembly.",
+        flankWearMm: 0.260,
+      },
+      {
+        id: "RB-03",
+        name: "Zeiss Prismo CMM Quality Station",
+        type: "CMM QA",
+        status: "running",
+        x: "40%",
+        y: "65%",
+        width: 150,
+        height: 100,
+        temperature: 42.1,
+        vibration: 0.8,
+        current: 3.4,
+        speed: 400,
+        runtime: 4.2,
+        health: 99,
+        failureProbability: 1,
+        failureTime: "90 days",
+        location: "Robotics Cell",
+        department: "Metrology & QA",
+        installedOn: "01 Mar 2024",
+        lastMaintenance: "05 Oct 2026",
+        recommendation: "Optical stylus calibration verified.",
+        diagnosis: "Sub-micron calibration nominal.",
+        flankWearMm: 0.012,
+      },
+    ],
   },
   {
     id: "preset-thermal",
@@ -716,76 +1100,190 @@ export const DEFAULT_LAYOUT_PRESETS: LayoutPreset[] = [
     roomFilter: "thermal",
     isDefault: true,
     createdAt: "2026-10-28",
-    positions: {
-      "M-09": { x: "30%", y: "40%", width: 165, height: 115 },
-      "M-11": { x: "65%", y: "40%", width: 155, height: 105 },
-    },
+    blueprint: null,
+    blueprintScale: 1,
+    blueprintOffsetX: 0,
+    blueprintOffsetY: 0,
+    blueprintOpacity: 0.65,
+    blueprintFit: "contain",
+    machines: [
+      {
+        id: "TH-01",
+        name: "Induction Heat Treatment Furnace",
+        type: "Heat Treatment",
+        status: "critical",
+        x: "28%",
+        y: "38%",
+        width: 165,
+        height: 115,
+        temperature: 88.5,
+        vibration: 4.8,
+        current: 16.4,
+        speed: 720,
+        runtime: 14.1,
+        health: 54,
+        failureProbability: 46,
+        failureTime: "4 days",
+        location: "Thermal Treatment",
+        department: "Thermal Processing",
+        installedOn: "01 Feb 2024",
+        lastMaintenance: "15 Sep 2026",
+        recommendation: "Schedule immediate coil inspection and coolant purge.",
+        diagnosis: "Thermal barrier degradation and high induction coil eddy current.",
+        flankWearMm: 0.485,
+      },
+      {
+        id: "TH-02",
+        name: "Automated Strapping & Packaging Cell",
+        type: "Packaging",
+        status: "critical",
+        x: "62%",
+        y: "38%",
+        width: 155,
+        height: 105,
+        temperature: 64.0,
+        vibration: 4.6,
+        current: 13.9,
+        speed: 1650,
+        runtime: 12.5,
+        health: 58,
+        failureProbability: 42,
+        failureTime: "5 days",
+        location: "Packaging Bay",
+        department: "End-of-Line Logistics",
+        installedOn: "25 Feb 2024",
+        lastMaintenance: "20 Sep 2026",
+        recommendation: "Inspect strap tensioner and conveyor motor bearing.",
+        diagnosis: "Mechanical friction and belt slippage threshold exceeded.",
+        flankWearMm: 0.420,
+      },
+    ],
   },
 ];
 
-const PRESETS_STORAGE_KEY = "factoryos_room_presets_cache_v1";
+const PRESETS_STORAGE_KEY = "factoryos_room_presets_cache_v3";
+
+function openPresetDb(): Promise<IDBDatabase | null> {
+  if (typeof window === "undefined" || !window.indexedDB) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const request = window.indexedDB.open("FactoryOS_PresetDB_v3", 1);
+      request.onupgradeneeded = (e: any) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains("presets")) {
+          db.createObjectStore("presets", { keyPath: "id" });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
 
 export async function fetchLayoutPresetsFromDb(): Promise<LayoutPreset[]> {
   try {
-    const { data, error } = await supabase
-      .from("layout_presets")
-      .select("*")
-      .order("created_at", { ascending: true });
+    const db = await openPresetDb();
+    if (db) {
+      const storedPresets: LayoutPreset[] = await new Promise((resolve) => {
+        try {
+          const tx = db.transaction("presets", "readonly");
+          const req = tx.objectStore("presets").getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        } catch {
+          resolve([]);
+        }
+      });
 
-    if (!error && Array.isArray(data) && data.length > 0) {
-      const parsed: LayoutPreset[] = data.map((d: any) => ({
-        id: d.id,
-        name: d.preset_name || d.name,
-        description: d.description || "",
-        roomFilter: d.room_filter || "all",
-        positions: typeof d.positions === "string" ? JSON.parse(d.positions) : (d.positions || {}),
-        isDefault: d.is_default || false,
-        createdAt: d.created_at || new Date().toISOString(),
-      }));
-      localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(parsed));
-      return parsed;
+      if (storedPresets && storedPresets.length > 0) {
+        const merged = [...storedPresets];
+        DEFAULT_LAYOUT_PRESETS.forEach((def) => {
+          if (!merged.some((p) => p.id === def.id)) {
+            merged.push(def);
+          }
+        });
+        return merged;
+      }
     }
   } catch (err) {
-    console.warn("Supabase layout presets query note:", err);
+    console.warn("IndexedDB load notice:", err);
   }
 
-  // Fallback to local cache or defaults
   try {
     const cached = localStorage.getItem(PRESETS_STORAGE_KEY);
     if (cached) {
       const list = JSON.parse(cached);
-      if (Array.isArray(list) && list.length > 0) return list;
+      if (Array.isArray(list) && list.length > 0) {
+        const merged = [...list];
+        DEFAULT_LAYOUT_PRESETS.forEach((def) => {
+          if (!merged.some((p) => p.id === def.id)) {
+            merged.push(def);
+          }
+        });
+        return merged;
+      }
     }
-  } catch (e) {
+  } catch {
     // Ignore
   }
 
-  localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(DEFAULT_LAYOUT_PRESETS));
+  // Seed IndexedDB with defaults
+  try {
+    const db = await openPresetDb();
+    if (db) {
+      const tx = db.transaction("presets", "readwrite");
+      DEFAULT_LAYOUT_PRESETS.forEach((def) => tx.objectStore("presets").put(def));
+    }
+  } catch {
+    // Ignore
+  }
+
   return DEFAULT_LAYOUT_PRESETS;
 }
 
 export async function saveLayoutPresetToDb(preset: LayoutPreset): Promise<void> {
   try {
-    const payload = {
-      id: preset.id,
-      preset_name: preset.name,
-      description: preset.description,
-      room_filter: preset.roomFilter || "all",
-      positions: preset.positions,
-      is_default: preset.isDefault || false,
-    };
-    const { error } = await supabase.from("layout_presets").upsert(payload, { onConflict: "id" });
-    if (error) console.warn("Supabase preset save note:", error.message);
+    const db = await openPresetDb();
+    if (db) {
+      const tx = db.transaction("presets", "readwrite");
+      tx.objectStore("presets").put(preset);
+    }
   } catch (err) {
-    console.warn("Supabase preset error:", err);
+    console.warn("IndexedDB write error:", err);
   }
 
-  // Update local cache
   try {
     const cached = await fetchLayoutPresetsFromDb();
     const updated = [...cached.filter((p) => p.id !== preset.id), preset];
-    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(updated));
-  } catch (e) {
+    try {
+      localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      const lightweight = updated.map((p) => ({ ...p, blueprint: null }));
+      localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(lightweight));
+    }
+  } catch {
+    // Ignore
+  }
+}
+
+export async function deleteLayoutPresetFromDb(presetId: string): Promise<void> {
+  try {
+    const db = await openPresetDb();
+    if (db) {
+      const tx = db.transaction("presets", "readwrite");
+      tx.objectStore("presets").delete(presetId);
+    }
+  } catch (err) {
+    console.warn("IndexedDB delete error:", err);
+  }
+
+  try {
+    const cached = await fetchLayoutPresetsFromDb();
+    const filtered = cached.filter((p) => p.id !== presetId);
+    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(filtered));
+  } catch {
     // Ignore
   }
 }

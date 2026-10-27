@@ -18,13 +18,11 @@ import Maintenance from "./pages/Maintenance/Maintenance";
 import Analytics from "./pages/Analytics/Analytics";
 import AddMachineModal, { type Machine, type MachineStatus } from "./components/AddMachineModal/AddMachineModal";
 import {
-  fetchMachinesFromDb,
   addMachineToDb,
-  updateMachineInDb,
-  deleteMachineFromDb,
-  seedNasaMachinesToDb,
   fetchLayoutPresetsFromDb,
   saveLayoutPresetToDb,
+  deleteLayoutPresetFromDb,
+  DEFAULT_LAYOUT_PRESETS,
   type LayoutPreset,
 } from "./services/supabaseService";
 import UserManagement from "./pages/UserManagement/UserManagement";
@@ -76,44 +74,127 @@ function App() {
   });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // Live Machine list fetched from Supabase database
-  const [machineList, setMachineList] = useState<Machine[]>([]);
+  // Blueprint Controls State (Independent per room preset)
+  const [blueprint, setBlueprint] = useState<string | null>(null);
+  const [showBlueprint, setShowBlueprint] = useState<boolean>(true);
+  const [blueprintScale, setBlueprintScale] = useState<number>(1);
+  const [blueprintOffsetX, setBlueprintOffsetX] = useState<number>(0);
+  const [blueprintOffsetY, setBlueprintOffsetY] = useState<number>(0);
+  const [blueprintOpacity, setBlueprintOpacity] = useState<number>(0.65);
+  const [blueprintFit, setBlueprintFit] = useState<"contain" | "cover">("contain");
+  const [showAdjustPanel, setShowAdjustPanel] = useState<boolean>(false);
+  const [isBottomPanelMinimized, setIsBottomPanelMinimized] = useState<boolean>(false);
+
   const [timeMultiplier, setTimeMultiplier] = useState<number>(1);
   const [isSimPanelOpen, setIsSimPanelOpen] = useState<boolean>(false);
   const [isAlertsPanelOpen, setIsAlertsPanelOpen] = useState<boolean>(true);
   const [quickInspectorMachineId, setQuickInspectorMachineId] = useState<string | null>(null);
 
-  // Factory Room & Layout Preset Configurations State with Database Persistence
+  // Factory Room & Layout Preset Configurations State with Independent Machines & Blueprints
   const [layoutPresets, setLayoutPresets] = useState<LayoutPreset[]>([]);
   const [currentPresetId, setCurrentPresetId] = useState<string>("preset-all");
 
   useEffect(() => {
     fetchLayoutPresetsFromDb()
-      .then((presets) => setLayoutPresets(presets))
+      .then((presets) => {
+        setLayoutPresets(presets);
+        const initial = presets.find((p) => p.id === currentPresetId) || presets[0];
+        if (initial) {
+          setBlueprint(initial.blueprint || null);
+          setBlueprintScale(initial.blueprintScale ?? 1);
+          setBlueprintOffsetX(initial.blueprintOffsetX ?? 0);
+          setBlueprintOffsetY(initial.blueprintOffsetY ?? 0);
+          setBlueprintOpacity(initial.blueprintOpacity ?? 0.65);
+          setBlueprintFit(initial.blueprintFit || "contain");
+          if (initial.machines && initial.machines.length > 0) {
+            setSelectedMachineId(initial.machines[0].id);
+          }
+        }
+      })
       .catch((err) => console.warn("Failed to load layout presets:", err));
   }, []);
 
+  // Active Preset definition
+  const activePreset: LayoutPreset = useMemo(() => {
+    return (
+      layoutPresets.find((p) => p.id === currentPresetId) ||
+      layoutPresets[0] ||
+      DEFAULT_LAYOUT_PRESETS[0]
+    );
+  }, [layoutPresets, currentPresetId]);
+
+  // Current machines deployed strictly on this layout
+  const currentFloorMachines: Machine[] = useMemo(() => {
+    return activePreset.machines || [];
+  }, [activePreset]);
+
+  // Keep machineList synchronized with the active preset machines
+  const machineList: Machine[] = currentFloorMachines;
+
+  // Helper to update machines strictly on the active preset with DB persistence
+  const updateActivePresetMachines = (updater: (prevMachines: Machine[]) => Machine[]) => {
+    setLayoutPresets((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id !== activePreset.id) return p;
+        return {
+          ...p,
+          machines: updater(p.machines || []),
+        };
+      });
+      const target = updated.find((p) => p.id === activePreset.id);
+      if (target) saveLayoutPresetToDb(target);
+      return updated;
+    });
+  };
+
+  // Selected Machine & Add Modal state
+  const [selectedMachineId, setSelectedMachineId] = useState<string>("M-01");
+  const [showAddMachineModal, setShowAddMachineModal] = useState<boolean>(false);
+  const [showDragHint, setShowDragHint] = useState<boolean>(true);
+
+  const selectedMachine: Machine = useMemo(() => {
+    return (
+      currentFloorMachines.find((m) => m.id === selectedMachineId) ??
+      currentFloorMachines[0] ?? {
+        id: "NO-MACHINE",
+        name: "No Equipment in Layout",
+        status: "running",
+        x: "50%",
+        y: "50%",
+        temperature: 50,
+        vibration: 2,
+        current: 8,
+        speed: 1400,
+        runtime: 0,
+        health: 100,
+        failureProbability: 0,
+        failureTime: "N/A",
+        location: activePreset.name,
+        installedOn: "N/A",
+        lastMaintenance: "N/A",
+        recommendation: "Click '+ Add Machine' to deploy equipment to this bay.",
+        diagnosis: "Layout empty.",
+      }
+    );
+  }, [currentFloorMachines, selectedMachineId, activePreset]);
+
   const handleSwitchPreset = (presetId: string) => {
     setCurrentPresetId(presetId);
-    const targetPreset = layoutPresets.find((p) => p.id === presetId);
-    if (!targetPreset) return;
+    const target = layoutPresets.find((p) => p.id === presetId);
+    if (target) {
+      setBlueprint(target.blueprint || null);
+      setBlueprintScale(target.blueprintScale ?? 1);
+      setBlueprintOffsetX(target.blueprintOffsetX ?? 0);
+      setBlueprintOffsetY(target.blueprintOffsetY ?? 0);
+      setBlueprintOpacity(target.blueprintOpacity ?? 0.65);
+      setBlueprintFit(target.blueprintFit || "contain");
+      setShowBlueprint(true);
+      setShowAdjustPanel(false);
 
-    setMachineList((prev) =>
-      prev.map((m) => {
-        const savedPos = targetPreset.positions[m.id];
-        if (savedPos) {
-          return {
-            ...m,
-            x: savedPos.x,
-            y: savedPos.y,
-            width: savedPos.width ?? m.width,
-            height: savedPos.height ?? m.height,
-            isLocked: savedPos.isLocked ?? m.isLocked,
-          };
-        }
-        return m;
-      })
-    );
+      if (target.machines && target.machines.length > 0) {
+        setSelectedMachineId(target.machines[0].id);
+      }
+    }
   };
 
   const handleSaveCurrentPreset = async () => {
@@ -121,23 +202,21 @@ function App() {
     if (!name || !name.trim()) return;
 
     const newPresetId = `preset-${Date.now().toString().slice(-6)}`;
-    const positions: Record<string, any> = {};
-    machineList.forEach((m) => {
-      positions[m.id] = {
-        x: m.x,
-        y: m.y,
-        width: m.width,
-        height: m.height,
-        isLocked: m.isLocked,
-      };
-    });
+    // Clone independent copies of current machines for this new preset
+    const clonedMachines: Machine[] = currentFloorMachines.map((m) => ({ ...m }));
 
     const newPreset: LayoutPreset = {
       id: newPresetId,
       name: `💾 ${name.trim()}`,
       description: `Configuration saved on ${new Date().toLocaleDateString("en-GB")}`,
       roomFilter: "custom",
-      positions,
+      blueprint: blueprint,
+      blueprintScale: blueprintScale,
+      blueprintOffsetX: blueprintOffsetX,
+      blueprintOffsetY: blueprintOffsetY,
+      blueprintOpacity: blueprintOpacity,
+      blueprintFit: blueprintFit,
+      machines: clonedMachines,
       isDefault: false,
       createdAt: new Date().toISOString(),
     };
@@ -147,26 +226,46 @@ function App() {
     setCurrentPresetId(newPresetId);
   };
 
-  // Dynamic real alerts derived strictly from equipment currently on layout
+  const handleDeletePreset = async (presetId: string) => {
+    if (presetId.startsWith("preset-") && DEFAULT_LAYOUT_PRESETS.some((d) => d.id === presetId)) {
+      alert("Factory default presets cannot be deleted.");
+      return;
+    }
+    if (!window.confirm("Are you sure you want to delete this custom room layout configuration?")) {
+      return;
+    }
+    await deleteLayoutPresetFromDb(presetId);
+    setLayoutPresets((prev) => prev.filter((p) => p.id !== presetId));
+    handleSwitchPreset("preset-all");
+  };
+
+  // Dynamic real alerts derived strictly from equipment on the active layout
   const alerts: Alert[] = useMemo(() => {
-    return generateDynamicAlerts(machineList).map((d) => ({
+    return generateDynamicAlerts(currentFloorMachines).map((d) => ({
       machine: d.machine,
       message: d.message,
       time: d.time,
       type: d.type,
     }));
-  }, [machineList]);
+  }, [currentFloorMachines]);
 
-  // Time Acceleration & Degradation Simulation Loop
+  // Time Acceleration & Degradation Simulation Loop on Active Layout
   useEffect(() => {
     if (timeMultiplier === 0) return;
     const interval = setInterval(() => {
-      setMachineList((prev) =>
-        prev.map((m) => simulateMachineTick(m, 1, timeMultiplier))
+      setLayoutPresets((prev) =>
+        prev.map((p) =>
+          p.id === currentPresetId
+            ? {
+                ...p,
+                machines: p.machines.map((m) => simulateMachineTick(m, 1, timeMultiplier)),
+              }
+            : p
+        )
       );
     }, 1000);
     return () => clearInterval(interval);
-  }, [timeMultiplier]);
+  }, [timeMultiplier, currentPresetId]);
 
   const handleSensorSliderChange = (
     machineId: string,
@@ -174,12 +273,19 @@ function App() {
     val: number
   ) => {
     overrideMachineSensor(machineId, { [sensor]: val });
-    setMachineList((prev) =>
-      prev.map((m) => {
-        if (m.id !== machineId) return m;
-        const modified = { ...m, [sensor]: val };
-        return simulateMachineTick(modified, 0, 1);
-      })
+    setLayoutPresets((prev) =>
+      prev.map((p) =>
+        p.id === activePreset.id
+          ? {
+              ...p,
+              machines: p.machines.map((m) => {
+                if (m.id !== machineId) return m;
+                const modified = { ...m, [sensor]: val };
+                return simulateMachineTick(modified, 0, 1);
+              }),
+            }
+          : p
+      )
     );
   };
 
@@ -188,52 +294,116 @@ function App() {
     faultType: "tool_wear" | "thermal_choke" | "bearing_fatigue" | "overcurrent"
   ) => {
     const updates = injectMachineFault(machineId, faultType);
-    setMachineList((prev) =>
-      prev.map((m) => (m.id === machineId ? { ...m, ...updates } : m))
+    setLayoutPresets((prev) =>
+      prev.map((p) =>
+        p.id === activePreset.id
+          ? {
+              ...p,
+              machines: p.machines.map((m) => (m.id === machineId ? { ...m, ...updates } : m)),
+            }
+          : p
+      )
     );
   };
 
   const handleResetMaintenance = (machineId: string) => {
     const restored = resetMachineMaintenance(machineId);
-    setMachineList((prev) =>
-      prev.map((m) => (m.id === machineId ? { ...m, ...restored } : m))
-    );
-    updateMachineInDb(machineId, restored).catch((e) => console.warn("Supabase update:", e));
+    setLayoutPresets((prev) => {
+      const updated = prev.map((p) =>
+        p.id === activePreset.id
+          ? {
+              ...p,
+              machines: p.machines.map((m) => (m.id === machineId ? { ...m, ...restored } : m)),
+            }
+          : p
+      );
+      const target = updated.find((p) => p.id === activePreset.id);
+      if (target) saveLayoutPresetToDb(target);
+      return updated;
+    });
   };
 
   const handleCloneMachine = async (machineId: string) => {
-    const base = machineList.find((m) => m.id === machineId);
+    const base = currentFloorMachines.find((m) => m.id === machineId);
     if (!base) return;
-    const count = machineList.filter((m) => m.id.startsWith(base.id)).length;
+    const count = currentFloorMachines.filter((m) => m.id.startsWith(base.id)).length;
     const twinPartial = createSimulationCopy(base, count + 1);
     const saved = await addMachineToDb(twinPartial);
-    setMachineList((prev) => [saved, ...prev]);
+    setLayoutPresets((prev) => {
+      const updated = prev.map((p) =>
+        p.id === activePreset.id
+          ? {
+              ...p,
+              machines: [saved, ...p.machines],
+            }
+          : p
+      );
+      const target = updated.find((p) => p.id === activePreset.id);
+      if (target) saveLayoutPresetToDb(target);
+      return updated;
+    });
     setSelectedMachineId(saved.id);
   };
-  // Fetch machines from Supabase on mount
-  useEffect(() => {
-    async function loadMachines() {
-      try {
-        const dbMachines = await fetchMachinesFromDb();
-        setMachineList(dbMachines);
-        if (dbMachines.length > 0) {
-          setSelectedMachineId(dbMachines[0].id);
-        }
-      } catch (err) {
-        console.error("Failed to load machines from Supabase database:", err);
-      }
-    }
-    loadMachines();
-  }, []);
 
-  // Selected Machine & Add Modal state
-  const [selectedMachineId, setSelectedMachineId] = useState("M-11");
-  const [showAddMachineModal, setShowAddMachineModal] = useState(false);
-  const [showDragHint, setShowDragHint] = useState(true);
+  const handleAddMachine = async (machineData: Partial<Machine>) => {
+    const saved = await addMachineToDb(machineData);
+    setLayoutPresets((prev) => {
+      const updated = prev.map((p) =>
+        p.id === activePreset.id
+          ? {
+              ...p,
+              machines: [saved, ...p.machines.filter((m) => m.id !== saved.id)],
+            }
+          : p
+      );
+      const target = updated.find((p) => p.id === activePreset.id);
+      if (target) saveLayoutPresetToDb(target);
+      return updated;
+    });
+    setSelectedMachineId(saved.id);
+    setShowAddMachineModal(false);
+  };
+
+  const handleDeleteMachine = async (machineId: string) => {
+    if (!window.confirm(`Remove ${selectedMachine.name} (#${machineId}) from ${activePreset.name}?`)) {
+      return;
+    }
+    setLayoutPresets((prev) => {
+      const updated = prev.map((p) =>
+        p.id === activePreset.id
+          ? {
+              ...p,
+              machines: p.machines.filter((m) => m.id !== machineId),
+            }
+          : p
+      );
+      const target = updated.find((p) => p.id === activePreset.id);
+      if (target) saveLayoutPresetToDb(target);
+      return updated;
+    });
+
+    const remaining = currentFloorMachines.filter((m) => m.id !== machineId);
+    if (remaining.length > 0) {
+      setSelectedMachineId(remaining[0].id);
+    }
+  };
+
+  // Seed Default Equipment for the active layout if empty
+  const handleSeedNasaMachines = async () => {
+    const defaultM = DEFAULT_LAYOUT_PRESETS.find((d) => d.id === activePreset.id)?.machines || DEFAULT_LAYOUT_PRESETS[0].machines;
+    const cloned = defaultM.map((m) => ({ ...m }));
+    setLayoutPresets((prev) => {
+      const updated = prev.map((p) =>
+        p.id === activePreset.id ? { ...p, machines: cloned } : p
+      );
+      const target = updated.find((p) => p.id === activePreset.id);
+      if (target) saveLayoutPresetToDb(target);
+      return updated;
+    });
+    if (cloned.length > 0) setSelectedMachineId(cloned[0].id);
+  };
 
   // LAYOUT EDIT MODE (Lock / Unlock)
-  // When false: layout is locked (view mode: machines cannot be dragged or resized)
-  // When true: layout mode is active (machines can be moved and resized)
   const [isLayoutMode, setIsLayoutMode] = useState(false);
 
   // Drag & Move state
@@ -406,21 +576,19 @@ function App() {
   const isDashboard = currentPage.toLowerCase() === "dashboard";
   const isAdmin = userRole === "admin";
 
-  const selectedMachine =
-    machineList.find((machine) => machine.id === selectedMachineId) ??
-    machineList[0] ??
-    { id: 'NO-MACHINE', name: 'No Equipment Registered', status: 'running', x: '50%', y: '50%', temperature: 50, vibration: 2, current: 8, speed: 1400, runtime: 0, health: 100, failureProbability: 0, failureTime: 'N/A', location: 'N/A', installedOn: 'N/A', lastMaintenance: 'N/A', recommendation: 'Register equipment in database', diagnosis: 'Database is empty' };
 
-  // Blueprint Controls
-  const [blueprint, setBlueprint] = useState<string | null>(null);
-  const [showBlueprint, setShowBlueprint] = useState(true);
-  const [blueprintScale, setBlueprintScale] = useState(1);
-  const [blueprintOffsetX, setBlueprintOffsetX] = useState(0);
-  const [blueprintOffsetY, setBlueprintOffsetY] = useState(0);
-  const [blueprintOpacity, setBlueprintOpacity] = useState(0.65);
-  const [blueprintFit, setBlueprintFit] = useState<"contain" | "cover">("contain");
-  const [showAdjustPanel, setShowAdjustPanel] = useState(false);
-  const [isBottomPanelMinimized, setIsBottomPanelMinimized] = useState(false);
+
+  const updateActivePresetBlueprint = async (updates: Partial<LayoutPreset>) => {
+    if (!activePreset) return;
+    const updatedPreset: LayoutPreset = {
+      ...activePreset,
+      ...updates,
+    };
+    setLayoutPresets((prev) =>
+      prev.map((p) => (p.id === activePreset.id ? updatedPreset : p))
+    );
+    await saveLayoutPresetToDb(updatedPreset);
+  };
 
   // Auto-fit blueprint maintaining exact aspect ratio without distortion
   const handleAutoFitBlueprint = () => {
@@ -428,6 +596,12 @@ function App() {
     setBlueprintOffsetX(0);
     setBlueprintOffsetY(0);
     setBlueprintFit("contain");
+    updateActivePresetBlueprint({
+      blueprintScale: 1,
+      blueprintOffsetX: 0,
+      blueprintOffsetY: 0,
+      blueprintFit: "contain",
+    });
   };
 
   const handleBlueprintUpload = (
@@ -444,8 +618,9 @@ function App() {
 
     const reader = new FileReader();
 
-    reader.onload = () => {
-      setBlueprint(reader.result as string);
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setBlueprint(dataUrl);
       setBlueprintScale(1);
       setBlueprintOffsetX(0);
       setBlueprintOffsetY(0);
@@ -453,29 +628,56 @@ function App() {
       setBlueprintOpacity(0.70);
       setShowBlueprint(true);
       setShowAdjustPanel(false);
+
+      if (activePreset) {
+        const updatedPreset: LayoutPreset = {
+          ...activePreset,
+          blueprint: dataUrl,
+          blueprintScale: 1,
+          blueprintOffsetX: 0,
+          blueprintOffsetY: 0,
+          blueprintOpacity: 0.70,
+          blueprintFit: "contain",
+        };
+        await saveLayoutPresetToDb(updatedPreset);
+        setLayoutPresets((prev) =>
+          prev.map((p) => (p.id === activePreset.id ? updatedPreset : p))
+        );
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveBlueprint = () => {
+  const handleRemoveBlueprint = async () => {
     setBlueprint(null);
     setShowBlueprint(true);
     setBlueprintScale(1);
     setBlueprintOffsetX(0);
     setBlueprintOffsetY(0);
     setShowAdjustPanel(false);
+
+    if (activePreset) {
+      const updatedPreset: LayoutPreset = {
+        ...activePreset,
+        blueprint: null,
+      };
+      await saveLayoutPresetToDb(updatedPreset);
+      setLayoutPresets((prev) =>
+        prev.map((p) => (p.id === activePreset.id ? updatedPreset : p))
+      );
+    }
   };
 
   // KPI counts
-  const healthyMachines = machineList.filter(
+  const healthyMachines = currentFloorMachines.filter(
     (machine) => machine.status === "running"
   ).length;
 
-  const warningMachines = machineList.filter(
+  const warningMachines = currentFloorMachines.filter(
     (machine) => machine.status === "warning"
   ).length;
 
-  const criticalMachines = machineList.filter(
+  const criticalMachines = currentFloorMachines.filter(
     (machine) => machine.status === "critical"
   ).length;
 
@@ -544,26 +746,30 @@ function App() {
     const newXPercent = Math.max(2, Math.min(94, (newXpx / rect.width) * 100));
     const newYPercent = Math.max(8, Math.min(90, (newYpx / rect.height) * 100));
 
-    setMachineList((prev) =>
-      prev.map((m) =>
-        m.id === draggingMachineId
+    setLayoutPresets((prev) =>
+      prev.map((p) =>
+        p.id === activePreset.id
           ? {
-              ...m,
-              x: `${newXPercent.toFixed(1)}%`,
-              y: `${newYPercent.toFixed(1)}%`,
+              ...p,
+              machines: p.machines.map((m) =>
+                m.id === draggingMachineId
+                  ? {
+                      ...m,
+                      x: `${newXPercent.toFixed(1)}%`,
+                      y: `${newYPercent.toFixed(1)}%`,
+                    }
+                  : m
+              ),
             }
-          : m
+          : p
       )
     );
   };
 
   const handleMachinePointerUp = (e: React.PointerEvent) => {
     if (draggingMachineId) {
-      const moved = machineList.find((m) => m.id === draggingMachineId);
-      if (moved) {
-        updateMachineInDb(draggingMachineId, { x: moved.x, y: moved.y }).catch((err) =>
-          console.warn("Supabase pos update:", err)
-        );
+      if (activePreset) {
+        saveLayoutPresetToDb(activePreset);
       }
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -617,27 +823,30 @@ function App() {
     const newWidth = Math.max(90, Math.min(320, Math.round(startWidth + deltaX)));
     const newHeight = Math.max(65, Math.min(240, Math.round(startHeight + deltaY)));
 
-    setMachineList((prev) =>
-      prev.map((m) =>
-        m.id === resizingMachineId
+    setLayoutPresets((prev) =>
+      prev.map((p) =>
+        p.id === activePreset.id
           ? {
-              ...m,
-              width: newWidth,
-              height: newHeight,
+              ...p,
+              machines: p.machines.map((m) =>
+                m.id === resizingMachineId
+                  ? {
+                      ...m,
+                      width: newWidth,
+                      height: newHeight,
+                    }
+                  : m
+              ),
             }
-          : m
+          : p
       )
     );
   };
 
   const handleResizePointerUp = (e: React.PointerEvent) => {
     if (resizingMachineId) {
-      const resized = machineList.find((m) => m.id === resizingMachineId);
-      if (resized) {
-        updateMachineInDb(resizingMachineId, {
-          width: resized.width,
-          height: resized.height,
-        }).catch((err) => console.warn("Supabase size update:", err));
+      if (activePreset) {
+        saveLayoutPresetToDb(activePreset);
       }
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -670,7 +879,7 @@ function App() {
   // Fine Alignment / Nudge Handlers
   const handleNudgeMachine = (dx: number, dy: number) => {
     if (!selectedMachineId || !isLayoutMode) return;
-    setMachineList((prev) =>
+    updateActivePresetMachines((prev) =>
       prev.map((m) => {
         if (m.id !== selectedMachineId || m.isLocked) return m;
         const curX = parseFloat(m.x) || 50;
@@ -684,7 +893,7 @@ function App() {
 
   const handleSnapToGrid = () => {
     if (!selectedMachineId || !isLayoutMode) return;
-    setMachineList((prev) =>
+    updateActivePresetMachines((prev) =>
       prev.map((m) => {
         if (m.id !== selectedMachineId || m.isLocked) return m;
         const curX = parseFloat(m.x) || 50;
@@ -702,27 +911,12 @@ function App() {
 
   const handleCenterMachine = () => {
     if (!selectedMachineId || !isLayoutMode) return;
-    setMachineList((prev) =>
+    updateActivePresetMachines((prev) =>
       prev.map((m) =>
         m.id === selectedMachineId && !m.isLocked
           ? { ...m, x: "48%", y: "45%" }
           : m
       )
-    );
-  };
-
-  // Resize Stepper & Preset Handlers
-  const handleAdjustMachineSize = (dWidth: number, dHeight: number) => {
-    if (!selectedMachineId || !isLayoutMode) return;
-    setMachineList((prev) =>
-      prev.map((m) => {
-        if (m.id !== selectedMachineId || m.isLocked) return m;
-        const curW = m.width ?? 135;
-        const curH = m.height ?? 92;
-        const newW = Math.max(90, Math.min(320, curW + dWidth));
-        const newH = Math.max(65, Math.min(240, curH + dHeight));
-        return { ...m, width: newW, height: newH };
-      })
     );
   };
 
@@ -735,7 +929,7 @@ function App() {
       XL: { width: 230, height: 140 },
     };
     const { width, height } = sizes[preset];
-    setMachineList((prev) =>
+    updateActivePresetMachines((prev) =>
       prev.map((m) =>
         m.id === selectedMachineId && !m.isLocked
           ? { ...m, width, height }
@@ -746,7 +940,7 @@ function App() {
 
   const handleResetMachineSize = () => {
     if (!selectedMachineId || !isLayoutMode) return;
-    setMachineList((prev) =>
+    updateActivePresetMachines((prev) =>
       prev.map((m) =>
         m.id === selectedMachineId && !m.isLocked
           ? { ...m, width: 135, height: 92 }
@@ -756,58 +950,11 @@ function App() {
   };
 
   const handleToggleMachineLock = (id: string) => {
-    setMachineList((prev) =>
+    updateActivePresetMachines((prev) =>
       prev.map((m) =>
         m.id === id ? { ...m, isLocked: !m.isLocked } : m
       )
     );
-  };
-
-  const handleDeleteMachine = (id: string) => {
-    if (
-      window.confirm(
-        `Are you sure you want to remove machine ${id} from the floor layout?`
-      )
-    ) {
-      deleteMachineFromDb(id).catch((err) => console.warn("Supabase delete:", err));
-      setMachineList((prev) => {
-        const next = prev.filter((m) => m.id !== id);
-        if (selectedMachineId === id && next.length > 0) {
-          setSelectedMachineId(next[0].id);
-        }
-        return next;
-      });
-    }
-  };
-
-  const handleResetDefaultLayout = async () => {
-    if (
-      window.confirm(
-        "Reset all machines and equipment to the original factory default positions and sizes?"
-      )
-    ) {
-      const fresh = await fetchMachinesFromDb(); setMachineList(fresh);
-      localStorage.removeItem("factoryos_machines");
-      setSelectedMachineId("M-11");
-    }
-  };
-
-  const handleAddMachine = async (newMachine: Machine) => {
-    // Write directly to Supabase database
-    const saved = await addMachineToDb(newMachine);
-    setMachineList((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)]);
-    setSelectedMachineId(saved.id);
-    setIsLayoutMode(true);
-  };
-
-  const handleSeedNasaMachines = async () => {
-    try {
-      const seeded = await seedNasaMachinesToDb();
-      setMachineList(seeded);
-      if (seeded.length > 0) setSelectedMachineId(seeded[0].id);
-    } catch (err) {
-      console.error("Failed to seed NASA machines to Supabase:", err);
-    }
   };
 
   if (isPasswordRecovery) {
@@ -1229,10 +1376,10 @@ function App() {
             )}
 
             {/* Blueprint Background */}
-            {blueprint && showBlueprint && (
+            {blueprint && showBlueprint ? (
               <img
                 src={blueprint}
-                alt="Factory Blueprint"
+                alt={`${activePreset.name} Blueprint`}
                 className="factory-blueprint"
                 style={{
                   transform: `translate(${blueprintOffsetX}px, ${blueprintOffsetY}px) scale(${blueprintScale})`,
@@ -1240,9 +1387,201 @@ function App() {
                   objectFit: blueprintFit,
                 }}
               />
+            ) : currentFloorMachines.length === 0 ? (
+              <div className="blueprint-bay-empty-card">
+                <div className="blueprint-bay-icon">📐</div>
+                <h3>{activePreset.name}</h3>
+                <p>
+                  No equipment deployed or blueprint uploaded for this room layout. Upload an architectural floor plan specific to this bay to position equipment with millimeter accuracy.
+                </p>
+                <div className="blueprint-bay-btn-row">
+                  <label htmlFor="blueprint-upload" className="blueprint-bay-upload-btn">
+                    <span>↑</span> Upload Blueprint for this Room
+                  </label>
+                  <button
+                    type="button"
+                    className="blueprint-bay-equip-btn"
+                    onClick={() => setShowAddMachineModal(true)}
+                  >
+                    <span>＋</span> Add Machine to Bay
+                  </button>
+                  <button
+                    type="button"
+                    className="blueprint-bay-equip-btn"
+                    style={{ borderColor: "#10b981", color: "#34d399" }}
+                    onClick={handleSeedNasaMachines}
+                  >
+                    <span>📥</span> Seed Default Bay Equipment
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Blueprint Calibration Drawer */}
+            {showAdjustPanel && blueprint && (
+              <div className="blueprint-adjust-drawer" onClick={(e) => e.stopPropagation()}>
+                <div className="blueprint-adjust-header">
+                  <h4><span>⚙</span> Blueprint Calibration</h4>
+                  <button
+                    type="button"
+                    className="blueprint-adjust-close"
+                    onClick={() => setShowAdjustPanel(false)}
+                    title="Close adjustment drawer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Scale</span>
+                    <span>{blueprintScale.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="3.0"
+                    step="0.05"
+                    value={blueprintScale}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setBlueprintScale(val);
+                      updateActivePresetBlueprint({ blueprintScale: val });
+                    }}
+                    className="adjust-control-slider"
+                  />
+                </div>
+
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Opacity</span>
+                    <span>{Math.round(blueprintOpacity * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1.0"
+                    step="0.05"
+                    value={blueprintOpacity}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setBlueprintOpacity(val);
+                      updateActivePresetBlueprint({ blueprintOpacity: val });
+                    }}
+                    className="adjust-control-slider"
+                  />
+                </div>
+
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Pan Position</span>
+                    <span>X: {blueprintOffsetX}px | Y: {blueprintOffsetY}px</span>
+                  </div>
+                  <div className="adjust-dpad-row">
+                    <div></div>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      onClick={() => {
+                        const val = blueprintOffsetY - 20;
+                        setBlueprintOffsetY(val);
+                        updateActivePresetBlueprint({ blueprintOffsetY: val });
+                      }}
+                      title="Move blueprint up"
+                    >
+                      ▲
+                    </button>
+                    <div></div>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      onClick={() => {
+                        const val = blueprintOffsetX - 20;
+                        setBlueprintOffsetX(val);
+                        updateActivePresetBlueprint({ blueprintOffsetX: val });
+                      }}
+                      title="Move blueprint left"
+                    >
+                      ◀
+                    </button>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      onClick={handleAutoFitBlueprint}
+                      title="Reset pan & zoom"
+                    >
+                      ⛶
+                    </button>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      onClick={() => {
+                        const val = blueprintOffsetX + 20;
+                        setBlueprintOffsetX(val);
+                        updateActivePresetBlueprint({ blueprintOffsetX: val });
+                      }}
+                      title="Move blueprint right"
+                    >
+                      ▶
+                    </button>
+                    <div></div>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      onClick={() => {
+                        const val = blueprintOffsetY + 20;
+                        setBlueprintOffsetY(val);
+                        updateActivePresetBlueprint({ blueprintOffsetY: val });
+                      }}
+                      title="Move blueprint down"
+                    >
+                      ▼
+                    </button>
+                    <div></div>
+                  </div>
+                </div>
+
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Aspect Ratio Fit</span>
+                  </div>
+                  <div className="adjust-fit-pills">
+                    <button
+                      type="button"
+                      className={`adjust-fit-btn ${blueprintFit === "contain" ? "active" : ""}`}
+                      onClick={() => {
+                        setBlueprintFit("contain");
+                        updateActivePresetBlueprint({ blueprintFit: "contain" });
+                      }}
+                    >
+                      Contain (Preserve Ratio)
+                    </button>
+                    <button
+                      type="button"
+                      className={`adjust-fit-btn ${blueprintFit === "cover" ? "active" : ""}`}
+                      onClick={() => {
+                        setBlueprintFit("cover");
+                        updateActivePresetBlueprint({ blueprintFit: "cover" });
+                      }}
+                    >
+                      Cover
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "8px", borderTop: "1px solid #1f374e", paddingTop: "10px" }}>
+                  <button
+                    type="button"
+                    className="btn-bp-delete"
+                    style={{ width: "100%", justifyContent: "center" }}
+                    onClick={handleRemoveBlueprint}
+                    title="Delete blueprint for this room layout"
+                  >
+                    🗑 Delete Blueprint
+                  </button>
+                </div>
+              </div>
             )}
-
-
 
             {/* Drag & Align Hint - Hidden in Dashboard */}
             {!isDashboard && showDragHint && (
@@ -1255,7 +1594,7 @@ function App() {
             )}
 
             {/* Machines on Floor Layout */}
-            {machineList.map((machine) => {
+            {currentFloorMachines.map((machine) => {
               const isSelected = selectedMachineId === machine.id;
               const isDragging = draggingMachineId === machine.id;
               const isResizing = resizingMachineId === machine.id;
@@ -1407,215 +1746,147 @@ function App() {
               );
             })}
 
-            {/* Floating Machine Alignment & Resizing Dock - Admin Only on Factory Layout */}
-            {!isDashboard && isAdmin && selectedMachine && (
-              <div className="layout-align-dock" onClick={(e) => e.stopPropagation()}>
-                <div className="align-dock-info">
-                  <span className={`align-dock-status ${selectedMachine.status}`}>●</span>
-                  <strong>{selectedMachine.id}</strong>
-                  <span className="align-dock-name">{selectedMachine.name}</span>
-                  <span className="align-dock-coords">
-                    {selectedMachine.x}, {selectedMachine.y}
-                  </span>
+            {/* Floating Machine Inspector - Admin Only in Layout Mode when a machine is selected */}
+            {!isDashboard && isAdmin && isLayoutMode && selectedMachine && (
+              <div className="layout-floating-inspector" onClick={(e) => e.stopPropagation()}>
+                <div className="inspector-badge">
+                  <span className="inspector-icon">{getMachineIcon(selectedMachine.name)}</span>
+                  <div className="inspector-text">
+                    <strong>{selectedMachine.name}</strong>
+                    <span>{selectedMachine.id} • {selectedMachine.x}, {selectedMachine.y}</span>
+                  </div>
                 </div>
 
-                {!isLayoutMode ? (
-                  /* VIEW ONLY / LOCKED DOCK */
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "11px", color: "#8da4be" }}>
-                      🔒 Layout Locked (View Mode)
-                    </span>
+                <div className="inspector-btn-row">
+                  <button
+                    type="button"
+                    className={`inspector-lock-btn ${selectedMachine.isLocked ? "locked" : ""}`}
+                    onClick={() => handleToggleMachineLock(selectedMachine.id)}
+                    title={selectedMachine.isLocked ? "Unlock machine to move/resize" : "Lock machine position"}
+                  >
+                    {selectedMachine.isLocked ? "🔒 Locked" : "🔓 Unlocked"}
+                  </button>
+
+                  {/* Nudge Alignment */}
+                  <div className="inspector-btn-group" title="Nudge position">
                     <button
                       type="button"
-                      className="btn-layout-mode locked"
-                      style={{ padding: "4px 10px", fontSize: "11px" }}
-                      onClick={() => setIsLayoutMode(true)}
-                      title="Enter Layout Mode to move, align, and resize machines"
+                      onClick={() => handleNudgeMachine(-1, 0)}
+                      disabled={selectedMachine.isLocked}
+                      title="Nudge Left 1%"
                     >
-                      🔓 Unlock Layout Mode
+                      ◀
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeMachine(0, -1)}
+                      disabled={selectedMachine.isLocked}
+                      title="Nudge Up 1%"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeMachine(0, 1)}
+                      disabled={selectedMachine.isLocked}
+                      title="Nudge Down 1%"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNudgeMachine(1, 0)}
+                      disabled={selectedMachine.isLocked}
+                      title="Nudge Right 1%"
+                    >
+                      ▶
                     </button>
                   </div>
-                ) : (
-                  /* LAYOUT EDIT MODE (MOVABLE & RESIZABLE) */
-                  <>
-                    {/* Per-Machine Lock Toggle */}
+
+                  {/* Size Presets */}
+                  <div className="inspector-btn-group" title="Quick size presets">
                     <button
                       type="button"
-                      className={`btn-align-lock ${selectedMachine.isLocked ? "is-locked" : ""}`}
-                      onClick={() => handleToggleMachineLock(selectedMachine.id)}
-                      title={
-                        selectedMachine.isLocked
-                          ? "Unlock this machine so it can be moved and resized"
-                          : "Lock this machine in place"
-                      }
+                      onClick={() => handleSetSizePreset("S")}
+                      disabled={selectedMachine.isLocked}
+                      title="Small Cell (105×75)"
                     >
-                      <span>{selectedMachine.isLocked ? "🔒 Locked" : "🔓 Unlocked"}</span>
+                      S
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetSizePreset("M")}
+                      disabled={selectedMachine.isLocked}
+                      title="Medium Cell (135×92)"
+                    >
+                      M
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetSizePreset("L")}
+                      disabled={selectedMachine.isLocked}
+                      title="Large Cell (180×115)"
+                    >
+                      L
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetSizePreset("XL")}
+                      disabled={selectedMachine.isLocked}
+                      title="Extra Large Cell (230×140)"
+                    >
+                      XL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetMachineSize}
+                      disabled={selectedMachine.isLocked}
+                      title="Reset machine size to default (135×92)"
+                    >
+                      ↺
+                    </button>
+                  </div>
 
-                    {/* Nudge Alignment (◀ ▲ ▼ ▶) */}
-                    <div className="align-dock-nudges">
-                      <button
-                        type="button"
-                        onClick={() => handleNudgeMachine(-1, 0)}
-                        title="Nudge Left 1%"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        ◀
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleNudgeMachine(0, -1)}
-                        title="Nudge Up 1%"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleNudgeMachine(0, 1)}
-                        title="Nudge Down 1%"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        ▼
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleNudgeMachine(1, 0)}
-                        title="Nudge Right 1%"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        ▶
-                      </button>
-                    </div>
+                  {/* Grid Snap & Center */}
+                  <button
+                    type="button"
+                    className="inspector-action-btn"
+                    onClick={handleSnapToGrid}
+                    disabled={selectedMachine.isLocked}
+                    title="Snap machine to 5% floor grid"
+                  >
+                    ⊞ Snap
+                  </button>
 
-                    {/* Resize Controls */}
-                    <div className="align-dock-resizing">
-                      <span className="align-dock-resizing-label">Size:</span>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustMachineSize(-10, 0)}
-                        title="Narrower (-10px)"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        W−
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustMachineSize(10, 0)}
-                        title="Wider (+10px)"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        W+
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustMachineSize(0, -10)}
-                        title="Shorter (-10px)"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        H−
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustMachineSize(0, 10)}
-                        title="Taller (+10px)"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        H+
-                      </button>
+                  <button
+                    type="button"
+                    className="inspector-action-btn"
+                    onClick={handleCenterMachine}
+                    disabled={selectedMachine.isLocked}
+                    title="Center machine on floor"
+                  >
+                    ⊙ Center
+                  </button>
 
-                      {/* Size Presets */}
-                      <button
-                        type="button"
-                        onClick={() => handleSetSizePreset("S")}
-                        title="Small Preset (105×75)"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        S
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetSizePreset("M")}
-                        title="Medium / Default Preset (135×92)"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        M
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetSizePreset("L")}
-                        title="Large Preset (180×115)"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        L
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetSizePreset("XL")}
-                        title="Extra Large Cell (230×140)"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        XL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleResetMachineSize}
-                        title="Reset machine size to default"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        ↺
-                      </button>
-                    </div>
+                  <button
+                    type="button"
+                    className="inspector-action-btn"
+                    onClick={() => handleCloneMachine(selectedMachine.id)}
+                    title="Clone twin machine to test scenarios"
+                  >
+                    ⎘ Clone
+                  </button>
 
-                    {/* Alignment Tools */}
-                    <div className="align-dock-tools">
-                      <button
-                        type="button"
-                        onClick={() => handleCloneMachine(selectedMachine.id)}
-                        title="Duplicate machine to test different sensor scenarios"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        ⎘ Clone Twin
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSnapToGrid}
-                        title="Snap to 5% Floor Grid"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        ⊞ Snap Grid
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCenterMachine}
-                        title="Center on Floor"
-                        disabled={selectedMachine.isLocked}
-                      >
-                        ⊙ Center
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-align-delete"
-                        onClick={() => handleDeleteMachine(selectedMachine.id)}
-                        title="Remove machine from layout"
-                      >
-                        🗑
-                      </button>
-                      <button
-                        type="button"
-                        style={{
-                          background: "#00b4d8",
-                          color: "#04101b",
-                          fontWeight: 700,
-                        }}
-                        onClick={() => setIsLayoutMode(false)}
-                        title="Lock layout and finish editing"
-                      >
-                        🔒 Lock Floor
-                      </button>
-                    </div>
-                  </>
-                )}
+                  {/* Delete Machine from this specific layout */}
+                  <button
+                    type="button"
+                    className="inspector-delete-btn"
+                    onClick={() => handleDeleteMachine(selectedMachine.id)}
+                    title={`Remove ${selectedMachine.name} from ${activePreset.name}`}
+                  >
+                    🗑 Delete
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1642,18 +1913,18 @@ function App() {
               </div>
 
               <div className="factory-toolbar-actions">
-                {/* Simulation Settings Drawer Toggle Button (Keeps Simulation Running) */}
+                {/* 1. Simulation Indicator Pill */}
                 <button
                   type="button"
                   className={`btn-toolbar-sim ${timeMultiplier > 0 ? "active" : ""}`}
                   onClick={() => setIsSimPanelOpen((v) => !v)}
-                  title="Toggle Simulation Settings Drawer (Simulation continues running in background)"
+                  title="Toggle Simulation Drawer (Running in background)"
                 >
                   <span className="sim-pulse-icon">{timeMultiplier > 0 ? "⚡" : "⏸"}</span>
-                  <span>Sim: {timeMultiplier === 0 ? "PAUSED" : `${timeMultiplier}x`} {isSimPanelOpen ? "▲" : "▼"}</span>
+                  <span>Sim: {timeMultiplier === 0 ? "PAUSED" : `${timeMultiplier}x`}</span>
                 </button>
 
-                {/* Factory Room & Layout Configuration Selector with Database Persistence */}
+                {/* 2. Room / Layout Preset Dropdown */}
                 <div className="toolbar-preset-selector">
                   <span className="preset-selector-icon">🏛</span>
                   <select
@@ -1664,7 +1935,7 @@ function App() {
                   >
                     {layoutPresets.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}
+                        {p.name} ({p.machines ? p.machines.length : 0} machines)
                       </option>
                     ))}
                   </select>
@@ -1674,416 +1945,110 @@ function App() {
                       type="button"
                       className="btn-save-preset-toolbar"
                       onClick={handleSaveCurrentPreset}
-                      title="Save current layout positions as a new persistent preset"
+                      title="Save current layout as a new preset"
                     >
                       ＋ Save Preset
                     </button>
                   )}
+
+                  {!isDashboard && isAdmin && !activePreset.isDefault && (
+                    <button
+                      type="button"
+                      className="btn-del-preset-toolbar"
+                      onClick={() => handleDeletePreset(activePreset.id)}
+                      title="Delete this custom preset"
+                    >
+                      🗑
+                    </button>
+                  )}
                 </div>
 
-                {/* Collapsible Alerts Panel Toggle Button */}
-                <button
-                  type="button"
-                  className={`btn-toolbar-alerts ${isAlertsPanelOpen ? "active" : ""}`}
-                  onClick={() => setIsAlertsPanelOpen((v) => !v)}
-                  title={isAlertsPanelOpen ? "Collapse alerts panel to expand blueprint canvas" : "Show live condition alerts"}
-                >
-                  <span>🔔</span>
-                  <span>Alerts ({alerts.length})</span>
-                </button>
-
-                {/* Dashboard View Indicator */}
-                {isDashboard && (
-                  <div className="dashboard-live-indicator">
-                    <span className="live-pulse-dot"></span>
-                    <span>Live Telemetry Stream</span>
-                  </div>
-                )}
-
-                {/* Non-Admin View Only Notice on Factory Layout */}
-                {!isDashboard && !isAdmin && (
-                  <div className="view-only-role-badge">
-                    <span>🔒</span>
-                    <span>View Only ({userRole.toUpperCase()}) • Admin clearance required to modify</span>
-                  </div>
-                )}
-
-                {/* Layout Mode Lock/Unlock Master Toggle - Admin Only */}
+                {/* 3. Add Machine to This Layout */}
                 {!isDashboard && isAdmin && (
                   <button
                     type="button"
-                    className={`btn-layout-mode ${isLayoutMode ? "active" : "locked"}`}
-                    onClick={() => setIsLayoutMode((v) => !v)}
-                    title={
-                      isLayoutMode
-                        ? "Layout Mode is ACTIVE (Movable & Resizable). Click to Lock."
-                        : "Layout is LOCKED. Click to enter Layout Mode and edit positions & sizes."
-                    }
+                    className="btn-add-machine-toolbar"
+                    onClick={() => setShowAddMachineModal(true)}
+                    title={`Add a new machine specifically to ${activePreset.name}`}
                   >
-                    <span className="mode-icon">{isLayoutMode ? "🔓" : "🔒"}</span>
-                    <span>{isLayoutMode ? "Layout Mode: ON" : "Locked (View Mode)"}</span>
+                    <span>＋</span>
+                    <span>Add Machine</span>
                   </button>
                 )}
 
-                {/* Plus Sign Add Machine Button - Admin Only */}
+                {/* 4. Blueprint Controls with Clear Delete Button */}
                 {!isDashboard && isAdmin && (
-                  <>
-                    <button
-                      type="button"
-                      className="btn-add-machine-toolbar"
-                      onClick={() => setShowAddMachineModal(true)}
-                      title="Search & Add Machines / Equipment to Layout"
-                    >
-                      <span className="btn-add-plus">＋</span>
-                      <span>Add Machine</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn-add-machine-toolbar"
-                      style={{ background: "rgba(16, 185, 129, 0.14)", borderColor: "rgba(16, 185, 129, 0.4)", color: "#10b981" }}
-                      onClick={handleSeedNasaMachines}
-                      title="Seed NASA MC-510V Digital Twin equipment into floor"
-                    >
-                      <span>📥</span>
-                      <span>Seed NASA Twin</span>
-                    </button>
-                  </>
-                )}
-
-                {/* Blueprint Controls - Admin Only on Factory Layout */}
-                {!isDashboard && isAdmin && (
-                  <>
-                    {blueprint && (
+                  <div className="toolbar-blueprint-group">
+                    {blueprint ? (
                       <>
                         <button
                           type="button"
-                          className="blueprint-action-button"
-                          onClick={() => setShowBlueprint((current) => !current)}
-                        >
-                          {showBlueprint ? "Hide Blueprint" : "Show Blueprint"}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="blueprint-action-button btn-auto-fit-blueprint"
-                          style={{ borderColor: "#38bdf8", color: "#38bdf8", background: "rgba(56, 189, 248, 0.12)" }}
+                          className="btn-bp-action"
                           onClick={handleAutoFitBlueprint}
-                          title="Auto-fit blueprint to layout floor preserving original aspect ratio"
+                          title="Auto-fit blueprint to layout"
                         >
-                          ⛶ Auto-Fit
+                          ⛶ Fit
                         </button>
-
-                        <div className="blueprint-scale-controls">
-                          <button
-                            type="button"
-                            className="blueprint-scale-button"
-                            title="Zoom Out"
-                            onClick={() =>
-                              setBlueprintScale((s) =>
-                                Math.max(0.2, +(s - 0.1).toFixed(2))
-                              )
-                            }
-                          >
-                            −
-                          </button>
-                          <span className="blueprint-scale-value">
-                            {Math.round(blueprintScale * 100)}%
-                          </span>
-                          <button
-                            type="button"
-                            className="blueprint-scale-button"
-                            title="Zoom In"
-                            onClick={() =>
-                              setBlueprintScale((s) =>
-                                Math.min(3, +(s + 0.1).toFixed(2))
-                              )
-                            }
-                          >
-                            +
-                          </button>
-                        </div>
-
                         <button
                           type="button"
-                          className="blueprint-action-button"
-                          style={{
-                            borderColor: showAdjustPanel ? "#00b4d8" : undefined,
-                            color: showAdjustPanel ? "#ffffff" : undefined,
-                            background: showAdjustPanel
-                              ? "rgba(0,180,216,0.15)"
-                              : undefined,
-                          }}
+                          className={`btn-bp-action ${showAdjustPanel ? "active" : ""}`}
                           onClick={() => setShowAdjustPanel((v) => !v)}
-                          title="Adjust Blueprint Scale, Position, and Opacity"
+                          title="Adjust blueprint scale & offset"
                         >
                           ⚙ Adjust
                         </button>
+                        <button
+                          type="button"
+                          className="btn-bp-delete"
+                          onClick={handleRemoveBlueprint}
+                          title="Delete blueprint for this room"
+                        >
+                          🗑 Delete Blueprint
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <label htmlFor="blueprint-upload" className="blueprint-upload-button">
+                          <span>↑</span> Upload Blueprint
+                        </label>
+                        <input
+                          id="blueprint-upload"
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          onChange={handleBlueprintUpload}
+                          hidden
+                        />
                       </>
                     )}
-
-                    <label
-                      htmlFor="blueprint-upload"
-                      className="blueprint-upload-button"
-                    >
-                      <span>↑</span>
-                      Upload Blueprint
-                    </label>
-
-                    <input
-                      id="blueprint-upload"
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
-                      onChange={handleBlueprintUpload}
-                      hidden
-                    />
-
-                    {blueprint && (
-                      <button
-                        type="button"
-                        className="blueprint-delete-button"
-                        onClick={handleRemoveBlueprint}
-                        title="Remove Blueprint"
-                        aria-label="Remove Blueprint"
-                      >
-                        🗑
-                      </button>
-                    )}
-                  </>
+                  </div>
                 )}
 
-                {/* Reset Layout Button - Admin Only */}
+                {/* 5. Layout Mode Toggle */}
                 {!isDashboard && isAdmin && (
                   <button
                     type="button"
-                    className="blueprint-scale-button"
-                    style={{ width: "auto", padding: "0 8px", fontSize: "11px" }}
-                    onClick={handleResetDefaultLayout}
-                    title="Reset machines to factory default layout"
+                    className={`btn-layout-mode-pill ${isLayoutMode ? "active" : ""}`}
+                    onClick={() => setIsLayoutMode((m) => !m)}
+                    title={isLayoutMode ? "Click to lock floor (finish editing)" : "Click to enter Layout Edit Mode (move & resize)"}
                   >
-                    ↺ Reset
+                    {isLayoutMode ? "🔓 Layout Mode (Edit)" : "🔒 Floor Locked"}
                   </button>
                 )}
-              </div>
-            </div>
 
-            {/* Blueprint Adjustment Drawer - Hidden in Dashboard */}
-            {!isDashboard && blueprint && showBlueprint && showAdjustPanel && (
-              <div className="blueprint-adjust-drawer">
-                <div className="blueprint-adjust-header">
-                  <h4>⚙ Blueprint Alignment & Scale</h4>
-                  <button
-                    type="button"
-                    className="blueprint-adjust-close"
-                    onClick={() => setShowAdjustPanel(false)}
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Scale / Zoom */}
-                <div className="adjust-control-group">
-                  <div className="adjust-control-label">
-                    <span>Zoom / Scale</span>
-                    <strong style={{ color: "#00b4d8" }}>
-                      {Math.round(blueprintScale * 100)}%
-                    </strong>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.2"
-                    max="3.0"
-                    step="0.05"
-                    className="adjust-control-slider"
-                    value={blueprintScale}
-                    onChange={(e) =>
-                      setBlueprintScale(parseFloat(e.target.value))
-                    }
-                  />
-                </div>
-
-                {/* Opacity */}
-                <div className="adjust-control-group">
-                  <div className="adjust-control-label">
-                    <span>Opacity</span>
-                    <strong style={{ color: "#00ffc4" }}>
-                      {Math.round(blueprintOpacity * 100)}%
-                    </strong>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.1"
-                    max="1.0"
-                    step="0.05"
-                    className="adjust-control-slider"
-                    value={blueprintOpacity}
-                    onChange={(e) =>
-                      setBlueprintOpacity(parseFloat(e.target.value))
-                    }
-                  />
-                </div>
-
-                {/* Position Offset X */}
-                <div className="adjust-control-group">
-                  <div className="adjust-control-label">
-                    <span>Horizontal Pan (X)</span>
-                    <span>{blueprintOffsetX}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="-300"
-                    max="300"
-                    step="5"
-                    className="adjust-control-slider"
-                    value={blueprintOffsetX}
-                    onChange={(e) =>
-                      setBlueprintOffsetX(parseInt(e.target.value))
-                    }
-                  />
-                </div>
-
-                {/* Position Offset Y */}
-                <div className="adjust-control-group">
-                  <div className="adjust-control-label">
-                    <span>Vertical Pan (Y)</span>
-                    <span>{blueprintOffsetY}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="-300"
-                    max="300"
-                    step="5"
-                    className="adjust-control-slider"
-                    value={blueprintOffsetY}
-                    onChange={(e) =>
-                      setBlueprintOffsetY(parseInt(e.target.value))
-                    }
-                  />
-                </div>
-
-                {/* D-Pad Nudge Buttons */}
-                <div className="adjust-control-group">
-                  <div className="adjust-control-label">
-                    <span>Nudge Alignment (10px)</span>
-                  </div>
-                  <div className="adjust-dpad-row">
-                    <div></div>
-                    <button
-                      type="button"
-                      className="adjust-dpad-btn"
-                      title="Nudge Up"
-                      onClick={() => setBlueprintOffsetY((y) => y - 10)}
-                    >
-                      ▲
-                    </button>
-                    <div></div>
-                    <button
-                      type="button"
-                      className="adjust-dpad-btn"
-                      title="Nudge Left"
-                      onClick={() => setBlueprintOffsetX((x) => x - 10)}
-                    >
-                      ◀
-                    </button>
-                    <button
-                      type="button"
-                      className="adjust-dpad-btn"
-                      title="Center"
-                      onClick={() => {
-                        setBlueprintOffsetX(0);
-                        setBlueprintOffsetY(0);
-                      }}
-                    >
-                      •
-                    </button>
-                    <button
-                      type="button"
-                      className="adjust-dpad-btn"
-                      title="Nudge Right"
-                      onClick={() => setBlueprintOffsetX((x) => x + 10)}
-                    >
-                      ▶
-                    </button>
-                    <div></div>
-                    <button
-                      type="button"
-                      className="adjust-dpad-btn"
-                      title="Nudge Down"
-                      onClick={() => setBlueprintOffsetY((y) => y + 10)}
-                    >
-                      ▼
-                    </button>
-                    <div></div>
-                  </div>
-                </div>
-
-                {/* Fit Mode */}
-                <div className="adjust-control-group">
-                  <div className="adjust-control-label">
-                    <span>Display Mode</span>
-                  </div>
-                  <div className="adjust-fit-pills">
-                    <button
-                      type="button"
-                      className={`adjust-fit-btn ${
-                        blueprintFit === "contain" ? "active" : ""
-                      }`}
-                      onClick={() => setBlueprintFit("contain")}
-                    >
-                      Fit (Aspect Ratio)
-                    </button>
-                    <button
-                      type="button"
-                      className={`adjust-fit-btn ${
-                        blueprintFit === "cover" ? "active" : ""
-                      }`}
-                      onClick={() => setBlueprintFit("cover")}
-                    >
-                      Fill (Cover Floor)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Reset All */}
+                {/* 6. Alerts Side Panel Toggle */}
                 <button
                   type="button"
-                  className="btn-maint-export"
-                  style={{
-                    marginTop: "4px",
-                    textAlign: "center",
-                    width: "100%",
-                  }}
-                  onClick={() => {
-                    setBlueprintScale(1);
-                    setBlueprintOffsetX(0);
-                    setBlueprintOffsetY(0);
-                    setBlueprintOpacity(0.65);
-                    setBlueprintFit("contain");
-                  }}
+                  className={`btn-toolbar-alerts-toggle ${isAlertsPanelOpen ? "panel-open" : "panel-closed"}`}
+                  onClick={() => setIsAlertsPanelOpen((v) => !v)}
+                  title={isAlertsPanelOpen ? "Collapse alerts panel" : "Show live alerts"}
                 >
-                  ⛶ Reset Alignment & Zoom
+                  <span className="alerts-btn-bell">🔔</span>
+                  <span>Alerts ({alerts.length})</span>
                 </button>
               </div>
-            )}
-
-            {/* Expand Alerts Tab when panel is collapsed */}
-            {!isAlertsPanelOpen && (
-              <button
-                type="button"
-                className="floor-alerts-tab"
-                onClick={() => setIsAlertsPanelOpen(true)}
-                title="Expand live alerts panel"
-              >
-                <span>🔔</span>
-                <span>Alerts ({alerts.length})</span>
-                <span className="tab-arrow">◀</span>
-              </button>
-            )}
-
-            <div className="live-map-label">
-              <span></span>
-              Live Factory View
             </div>
+
+            
           </section>
 
           {/* ALERT PANEL (Collapsible to expand blueprint) */}
@@ -2348,11 +2313,12 @@ function App() {
             isOpen={showAddMachineModal}
             onClose={() => setShowAddMachineModal(false)}
             onAddMachine={handleAddMachine}
-            existingCount={machineList.length}
+            existingCount={currentFloorMachines.length}
           />
         </div>
       )}
-    </Layout>
+    
+      </Layout>
   );
 }
 

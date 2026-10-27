@@ -1,0 +1,341 @@
+/* =========================================
+   ROOM EQUIPMENT CONFIGURATION MODAL
+========================================= */
+
+.room-equip-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 9, 16, 0.78);
+  backdrop-filter: blur(8px);
+  z-index: 2200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeInOverlay 0.2s ease-out;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.room-equip-modal {
+  width: 100%;
+  max-width: 680px;
+  max-height: 85vh;
+  background: #0d1b2a;
+  border: 1px solid #203448;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(56, 189, 248, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f1f5f9;
+  animation: scaleUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scaleUpModal {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Header */
+.room-equip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid #1a2d40;
+  background: #0e1e2e;
+}
+
+.room-equip-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.room-equip-icon {
+  font-size: 26px;
+  background: rgba(56, 189, 248, 0.12);
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.room-equip-title-wrap h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.room-equip-title-wrap p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #8da4be;
+}
+
+.room-equip-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.room-equip-close:hover {
+  background: #1e293b;
+  color: #ffffff;
+}
+
+/* Toolbar */
+.room-equip-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 24px;
+  background: #091522;
+  border-bottom: 1px solid #16283b;
+}
+
+.room-equip-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 220px;
+}
+
+.room-equip-search span {
+  position: absolute;
+  left: 10px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.room-equip-search input {
+  width: 100%;
+  background: #060e18;
+  border: 1px solid #203448;
+  border-radius: 6px;
+  padding: 8px 32px 8px 32px;
+  color: #ffffff;
+  font-size: 0.84rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.room-equip-search input:focus {
+  border-color: #00b4d8;
+}
+
+.room-equip-clear-search {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.room-equip-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.room-equip-btn-sec {
+  padding: 6px 12px;
+  background: #14283d;
+  border: 1px solid #243c56;
+  color: #90e0ef;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.room-equip-btn-sec:hover {
+  background: #1d3b5a;
+  color: #ffffff;
+}
+
+/* Machine List */
+.room-equip-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 48vh;
+}
+
+.room-equip-empty {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.room-equip-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #0a1726;
+  border: 1px solid #1c3044;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.room-equip-item:hover {
+  background: #102133;
+  border-color: #2b4b6d;
+}
+
+.room-equip-item.selected {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: #00b4d8;
+  box-shadow: 0 0 10px rgba(0, 180, 216, 0.15);
+}
+
+.room-equip-checkbox {
+  width: 17px;
+  height: 17px;
+  accent-color: #00b4d8;
+  cursor: pointer;
+}
+
+.room-equip-m-icon {
+  font-size: 1.3rem;
+}
+
+.room-equip-m-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.room-equip-m-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.room-equip-m-name {
+  font-size: 0.92rem;
+  color: #f1f5f9;
+}
+
+.room-equip-m-id {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.room-equip-m-status {
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.room-equip-m-status.running {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.room-equip-m-status.warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.room-equip-m-status.error {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.room-equip-m-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: #8da4be;
+}
+
+/* Footer */
+.room-equip-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  border-top: 1px solid #1a2d40;
+  background: #0e1e2e;
+}
+
+.room-equip-summary {
+  font-size: 0.82rem;
+  color: #8da4be;
+}
+
+.room-equip-summary strong {
+  color: #38bdf8;
+}
+
+.room-equip-footer-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.room-equip-btn-cancel {
+  padding: 8px 16px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.room-equip-btn-cancel:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.room-equip-btn-save {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 0 12px rgba(2, 132, 199, 0.35);
+}
+
+.room-equip-btn-save:hover {
+  background: linear-gradient(135deg, #0369a1, #075985);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
+}
