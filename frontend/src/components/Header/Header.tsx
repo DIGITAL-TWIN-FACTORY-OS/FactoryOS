@@ -200,8 +200,42 @@ function Header({
   return (
     <header className="top-header">
       <div className="header-title">
-        <span className="header-logo">F</span>
-        <h2>FactoryOS</h2>
+        <div className="header-factoryos-mark">
+          <svg
+            className="header-factoryos-svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <linearGradient id="fosGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#00e5ff" />
+                <stop offset="100%" stopColor="#0077b6" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M12 2L3 7V17L12 22L21 17V7L12 2Z"
+              stroke="#00e5ff"
+              strokeWidth="1.6"
+              fill="rgba(0, 229, 255, 0.08)"
+            />
+            <path
+              d="M12 6L6 9.5V15.5L12 18.5L18 15.5V9.5L12 6Z"
+              stroke="url(#fosGrad)"
+              strokeWidth="1.2"
+              fill="rgba(0, 119, 182, 0.25)"
+            />
+            <circle cx="12" cy="12" r="2.2" fill="#20d873" />
+          </svg>
+        </div>
+
+        <div className="header-brand-wrap">
+          <div className="header-brand-logo-text">
+            <span className="header-fos-factory">FACTORY</span>
+            <span className="header-fos-badge">OS</span>
+          </div>
+          <span className="header-fos-telemetry">PLANT 01 • SCADA CORE</span>
+        </div>
       </div>
 
       <div className="header-right" ref={headerRightRef}>

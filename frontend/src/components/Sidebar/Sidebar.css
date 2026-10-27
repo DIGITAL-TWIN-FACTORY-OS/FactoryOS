@@ -1,5 +1,6 @@
 .sidebar {
-  width: 238px;
+  width: 258px;
+  padding: 16px 12px;
 
   min-height: 100vh;
 
@@ -26,8 +27,8 @@
 }
 
 .brand-logo-wrap {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   background: linear-gradient(135deg, rgba(0, 180, 216, 0.2), rgba(32, 216, 115, 0.1));
   border: 1px solid rgba(0, 229, 255, 0.4);
@@ -46,8 +47,8 @@
 }
 
 .smart-factory-svg-logo {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
 }
 
@@ -59,14 +60,15 @@
 }
 
 .brand-title {
-  font-family: 'Orbitron', 'Rajdhani', 'Inter', -apple-system, sans-serif;
-  font-size: 15px;
+  font-family: 'Orbitron', 'Rajdhani', sans-serif;
+  font-size: 14px;
   font-weight: 800;
-  letter-spacing: 1.8px;
+  letter-spacing: 1.2px;
   display: flex;
   align-items: center;
   gap: 5px;
-  line-height: 1.1;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .brand-smart {
