@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import "./Login.css";
+import UserRoleIcon from "../UserRoleIcon/UserRoleIcon";
 import { supabase } from "../../lib/supabaseClient";
 
 export type UserRole =
@@ -385,7 +386,8 @@ function Login({ onLogin }: LoginProps) {
                 }}
                 title="Sign in with full administrative privileges"
               >
-                🛡 Admin
+                <UserRoleIcon role="admin" size={14} />
+                <span>Admin</span>
               </button>
               <button
                 type="button"
@@ -397,7 +399,8 @@ function Login({ onLogin }: LoginProps) {
                 }}
                 title="Sign in as Plant Supervisor"
               >
-                🔍 Supervisor
+                <UserRoleIcon role="supervisor" size={14} />
+                <span>Supervisor</span>
               </button>
               <button
                 type="button"
@@ -409,7 +412,8 @@ function Login({ onLogin }: LoginProps) {
                 }}
                 title="Sign in as Maintenance Lead"
               >
-                ⚒ Maintenance
+                <UserRoleIcon role="maintenance" size={14} />
+                <span>Maintenance</span>
               </button>
               <button
                 type="button"
@@ -421,7 +425,8 @@ function Login({ onLogin }: LoginProps) {
                 }}
                 title="Sign in as Floor Operator (View only)"
               >
-                ⚙ Operator
+                <UserRoleIcon role="operator" size={14} />
+                <span>Operator</span>
               </button>
             </div>
           </div>

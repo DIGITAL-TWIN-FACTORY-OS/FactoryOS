@@ -840,3 +840,22 @@
   background: #00b4d8;
   color: #04101b;
 }
+
+/* ROLE ICONS & ENHANCEMENTS */
+.kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.role-pill {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.role-option-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

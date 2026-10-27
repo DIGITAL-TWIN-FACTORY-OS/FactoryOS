@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { UserRole } from "../Login/Login";
 import "./Header.css";
+import UserRoleIcon from "../UserRoleIcon/UserRoleIcon";
 
 interface HeaderProps {
   userRole: UserRole;
@@ -335,7 +336,9 @@ function Header({
             type="button"
             onClick={handleToggleProfile}
           >
-            <div className="user-avatar">◯</div>
+            <div className={`user-avatar role-avatar-${userRole}`}>
+              <UserRoleIcon role={userRole} size={20} />
+            </div>
 
             <div>
               <strong>{currentUser.name}</strong>
@@ -354,8 +357,17 @@ function Header({
           {isDropdownOpen && (
             <div className="user-dropdown">
               <div className="dropdown-user-info">
-                <strong>{currentUser.name}</strong>
-                <span>{currentUser.role}</span>
+                <div className="dropdown-avatar-row">
+                  <div className={`dropdown-user-avatar role-avatar-${userRole}`}>
+                    <UserRoleIcon role={userRole} size={24} />
+                  </div>
+                  <div>
+                    <strong>{currentUser.name}</strong>
+                    <span className={`role-badge-tag role-tag-${userRole}`}>
+                      {currentUser.role.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div className="dropdown-divider"></div>

@@ -1,0 +1,26 @@
+/* =========================================
+   USER ROLE ICON STYLES
+========================================= */
+
+.user-role-svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.role-svg-admin {
+  filter: drop-shadow(0 0 6px rgba(255, 70, 80, 0.5));
+}
+
+.role-svg-supervisor {
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.55));
+}
+
+.role-svg-maintenance {
+  filter: drop-shadow(0 0 6px rgba(255, 210, 28, 0.5));
+}
+
+.role-svg-operator {
+  filter: drop-shadow(0 0 6px rgba(32, 216, 115, 0.55));
+}

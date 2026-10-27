@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import "./UserManagement.css";
 import type { UserRole } from "../../components/Login/Login";
+import UserRoleIcon from "../../components/UserRoleIcon/UserRoleIcon";
 
 export interface ManagedUser {
   id: string;
@@ -294,14 +295,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-  };
 
   return (
     <div className="user-management-page">
@@ -334,27 +327,41 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       {/* KPI RIBBON */}
       <div className="user-kpi-ribbon">
         <div className="kpi-card">
-          <span className="kpi-label">Total System Users</span>
+          <div className="kpi-header">
+            <span className="kpi-label">Total System Users</span>
+          </div>
           <strong className="kpi-value">{totalUsers}</strong>
           <span className="kpi-sub">Registered accounts</span>
         </div>
         <div className="kpi-card role-border-admin">
-          <span className="kpi-label">Administrators</span>
+          <div className="kpi-header">
+            <span className="kpi-label">Administrators</span>
+            <UserRoleIcon role="admin" size={22} />
+          </div>
           <strong className="kpi-value text-admin">{adminCount}</strong>
           <span className="kpi-sub">Full modification rights</span>
         </div>
         <div className="kpi-card role-border-supervisor">
-          <span className="kpi-label">Supervisors</span>
+          <div className="kpi-header">
+            <span className="kpi-label">Supervisors</span>
+            <UserRoleIcon role="supervisor" size={22} />
+          </div>
           <strong className="kpi-value text-supervisor">{supervisorCount}</strong>
           <span className="kpi-sub">Monitoring & approvals</span>
         </div>
         <div className="kpi-card role-border-maintenance">
-          <span className="kpi-label">Maintenance Team</span>
+          <div className="kpi-header">
+            <span className="kpi-label">Maintenance Team</span>
+            <UserRoleIcon role="maintenance" size={22} />
+          </div>
           <strong className="kpi-value text-maintenance">{maintenanceCount}</strong>
           <span className="kpi-sub">Work orders & repair</span>
         </div>
         <div className="kpi-card role-border-operator">
-          <span className="kpi-label">Operators</span>
+          <div className="kpi-header">
+            <span className="kpi-label">Operators</span>
+            <UserRoleIcon role="operator" size={22} />
+          </div>
           <strong className="kpi-value text-operator">{operatorCount}</strong>
           <span className="kpi-sub">Floor machine view</span>
         </div>
@@ -448,7 +455,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                     <td>
                       <div className="user-profile-cell">
                         <div className={`user-avatar ${getRoleBadgeClass(user.role)}`}>
-                          {getInitials(user.name)}
+                          <UserRoleIcon role={user.role} size={22} />
                         </div>
                         <div className="user-details">
                           <strong>{user.name}</strong>
@@ -461,7 +468,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                     {/* Role Badge */}
                     <td>
                       <span className={`role-pill ${getRoleBadgeClass(user.role)}`}>
-                        {user.role.toUpperCase()}
+                        <UserRoleIcon role={user.role} size={14} />
+                        <span>{user.role.toUpperCase()}</span>
                       </span>
                     </td>
 
@@ -701,7 +709,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                       onClick={() => setEditRoleSelection(r.id as UserRole)}
                     >
                       <div className="role-option-header">
-                        <strong>{r.title}</strong>
+                        <div className="role-option-title-wrap">
+                          <UserRoleIcon role={r.id as UserRole} size={18} />
+                          <strong>{r.title}</strong>
+                        </div>
                         {editRoleSelection === r.id && <span>✓ Selected</span>}
                       </div>
                       <p>{r.desc}</p>
