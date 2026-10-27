@@ -1100,16 +1100,7 @@ function App() {
               />
             )}
 
-            {/* Factory Room Zones */}
-            <div className="factory-room raw-material">Raw Material Area</div>
-            <div className="factory-room quality-room">Quality Control</div>
-            <div className="factory-room finished-room">Finished Goods</div>
-            <div className="factory-room electrical-room">Electrical Substation</div>
-            <div className="factory-room maintenance-room">Maintenance Workshop</div>
-            <div className="factory-room compressor-room">Air Compressor Unit</div>
 
-            {/* Floor Transit Paths */}
-            <div className="floor-path path-one"></div>
 
             {/* Drag & Align Hint - Hidden in Dashboard */}
             {!isDashboard && showDragHint && (
