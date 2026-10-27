@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import Layout from "./components/Layout/Layout";
 import Login, { type UserRole } from "./components/Login/Login";
@@ -8,29 +8,11 @@ import Alerts from "./pages/Alerts/Alerts";
 import Machines from "./pages/Machines/Machines";
 import Maintenance from "./pages/Maintenance/Maintenance";
 import Analytics from "./pages/Analytics/Analytics";
-type MachineStatus = "running" | "warning" | "critical";
+import AddMachineModal, { type Machine, type MachineStatus } from "./components/AddMachineModal/AddMachineModal";
 import { supabase } from "./lib/supabaseClient";
 import "./components/Login/Login.css";
-interface Machine {
-  id: string;
-  name: string;
-  status: MachineStatus;
-  x: string;
-  y: string;
-  temperature: number;
-  vibration: number;
-  current: number;
-  speed: number;
-  runtime: number;
-  health: number;
-  failureProbability: number;
-  failureTime: string;
-  location: string;
-  installedOn: string;
-  lastMaintenance: string;
-  recommendation: string;
-  diagnosis: string;
-}
+
+export type { Machine, MachineStatus };
 
 interface Alert {
   machine: string;
@@ -39,7 +21,7 @@ interface Alert {
   type: "critical" | "warning" | "info";
 }
 
-const machines: Machine[] = [
+const defaultMachines: Machine[] = [
   {
     id: "M-01",
     name: "CNC Milling",
@@ -309,158 +291,212 @@ function getStatusLabel(status: MachineStatus) {
   return "Critical";
 }
 
+function getMachineIcon(name: string) {
+  const n = name.toLowerCase();
+  if (n.includes("robot") || n.includes("arm") || n.includes("cobot")) return "🤖";
+  if (n.includes("weld")) return "⚡";
+  if (n.includes("conveyor") || n.includes("agv") || n.includes("handling")) return "⇄";
+  if (n.includes("heat") || n.includes("furnace") || n.includes("treatment")) return "♨";
+  if (n.includes("press") || n.includes("brake") || n.includes("stamping")) return "▼";
+  if (n.includes("laser")) return "✦";
+  if (n.includes("pack")) return "▣";
+  if (n.includes("inspection") || n.includes("aoi") || n.includes("scan") || n.includes("cmm")) return "🔍";
+  if (n.includes("compressor") || n.includes("chiller") || n.includes("air")) return "💨";
+  return "⚙";
+}
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("operator");
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-useEffect(() => {
-  const restoreSession = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
 
-    if (session?.user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-
-      if (profile?.role) {
-        setUserRole(profile.role as UserRole);
-        setIsLoggedIn(true);
+  // Dynamic Machines list with localStorage persistence
+  const [machineList, setMachineList] = useState<Machine[]>(() => {
+    try {
+      const saved = localStorage.getItem("factoryos_machines");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
+    } catch (e) {
+      console.error("Failed to load saved machines from localStorage", e);
     }
-
-    setIsAuthLoading(false);
-  };
-
-  restoreSession();
-}, []);
-useEffect(() => {
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === "SIGNED_IN" && session?.user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-
-      if (profile?.role) {
-        setUserRole(profile.role as UserRole);
-        setIsLoggedIn(true);
-      }
-    }
-
-    if (event === "SIGNED_OUT") {
-      setIsLoggedIn(false);
-      setUserRole("operator");
-      setCurrentPage("Dashboard");
-    }
+    return defaultMachines;
   });
 
-  return () => {
-    subscription.unsubscribe();
-  };
-}, []);
-
-const [isPasswordRecovery, setIsPasswordRecovery] = useState(
-  () => window.location.hash.includes("type=recovery")
-);
-
-const [newPassword, setNewPassword] = useState("");
-const [confirmPassword, setConfirmPassword] = useState("");
-const [resetError, setResetError] = useState("");
-const [resetSuccess, setResetSuccess] = useState("");
-const [isResettingPassword, setIsResettingPassword] =
-  useState(false);
+  // Persist machine changes
   useEffect(() => {
-  const handleRecovery = () => {
-    setIsPasswordRecovery(true);
-  };
-
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((event) => {
-    if (event === "PASSWORD_RECOVERY") {
-      handleRecovery();
+    try {
+      localStorage.setItem("factoryos_machines", JSON.stringify(machineList));
+    } catch (e) {
+      console.error("Failed to save machines to localStorage", e);
     }
-  });
+  }, [machineList]);
 
-  return () => {
-    subscription.unsubscribe();
-  };
-}, []);
-const handlePasswordReset = async (
-  event: React.FormEvent<HTMLFormElement>
-) => {
-  event.preventDefault();
+  // Selected Machine & Add Modal state
+  const [selectedMachineId, setSelectedMachineId] = useState("M-11");
+  const [showAddMachineModal, setShowAddMachineModal] = useState(false);
+  const [showDragHint, setShowDragHint] = useState(true);
 
-  setResetError("");
-  setResetSuccess("");
+  // Drag & Move state
+  const factoryFloorRef = useRef<HTMLElement>(null);
+  const [draggingMachineId, setDraggingMachineId] = useState<string | null>(null);
+  const dragOffsetRef = useRef<{
+    offsetX: number;
+    offsetY: number;
+    rect: DOMRect;
+  } | null>(null);
 
-  if (newPassword.length < 8) {
-    setResetError(
-      "Password must be at least 8 characters long."
-    );
-    return;
-  }
+  useEffect(() => {
+    const restoreSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-  if (newPassword !== confirmPassword) {
-    setResetError("Passwords do not match.");
-    return;
-  }
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .single();
 
-  try {
-    setIsResettingPassword(true);
+        if (profile?.role) {
+          setUserRole(profile.role as UserRole);
+          setIsLoggedIn(true);
+        }
+      }
 
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
+      setIsAuthLoading(false);
+    };
+
+    restoreSession();
+  }, []);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .single();
+
+        if (profile?.role) {
+          setUserRole(profile.role as UserRole);
+          setIsLoggedIn(true);
+        }
+      }
+
+      if (event === "SIGNED_OUT") {
+        setIsLoggedIn(false);
+        setUserRole("operator");
+        setCurrentPage("dashboard");
+      }
     });
 
-    if (error) {
-      setResetError(error.message);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(
+    () => window.location.hash.includes("type=recovery")
+  );
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState("");
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  useEffect(() => {
+    const handleRecovery = () => {
+      setIsPasswordRecovery(true);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        handleRecovery();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const handlePasswordReset = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    setResetError("");
+    setResetSuccess("");
+
+    if (newPassword.length < 8) {
+      setResetError("Password must be at least 8 characters long.");
       return;
     }
 
-    setResetSuccess(
-      "Password updated successfully. You can now sign in."
-    );
+    if (newPassword !== confirmPassword) {
+      setResetError("Passwords do not match.");
+      return;
+    }
 
-    await supabase.auth.signOut();
+    try {
+      setIsResettingPassword(true);
 
-    window.history.replaceState(
-      {},
-      document.title,
-      window.location.pathname
-    );
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
 
-    setTimeout(() => {
-      setIsPasswordRecovery(false);
-      setNewPassword("");
-      setConfirmPassword("");
-      setResetSuccess("");
-      setIsLoggedIn(false);
-    }, 1500);
-  } catch (error) {
-    console.error("Password reset error:", error);
+      if (error) {
+        setResetError(error.message);
+        return;
+      }
 
-    setResetError(
-      "Unable to update your password. Please try again."
-    );
-  } finally {
-    setIsResettingPassword(false);
-  }
-};
-  const [currentPage, setCurrentPage] =
-    useState("dashboard");
-  const [selectedMachineId] = useState("M-11");
+      setResetSuccess(
+        "Password updated successfully. You can now sign in."
+      );
+
+      await supabase.auth.signOut();
+
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname
+      );
+
+      setTimeout(() => {
+        setIsPasswordRecovery(false);
+        setNewPassword("");
+        setConfirmPassword("");
+        setResetSuccess("");
+        setIsLoggedIn(false);
+      }, 1500);
+    } catch (error) {
+      console.error("Password reset error:", error);
+
+      setResetError(
+        "Unable to update your password. Please try again."
+      );
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  const [currentPage, setCurrentPage] = useState("dashboard");
 
   const selectedMachine =
-    machines.find((machine) => machine.id === selectedMachineId) ??
-    machines[0];
+    machineList.find((machine) => machine.id === selectedMachineId) ??
+    machineList[0] ??
+    defaultMachines[0];
+
+  // Blueprint Controls
   const [blueprint, setBlueprint] = useState<string | null>(null);
   const [showBlueprint, setShowBlueprint] = useState(true);
   const [blueprintScale, setBlueprintScale] = useState(1);
@@ -469,48 +505,52 @@ const handlePasswordReset = async (
   const [blueprintOpacity, setBlueprintOpacity] = useState(0.65);
   const [blueprintFit, setBlueprintFit] = useState<"contain" | "cover">("contain");
   const [showAdjustPanel, setShowAdjustPanel] = useState(false);
+
   const handleBlueprintUpload = (
-  event: React.ChangeEvent<HTMLInputElement>
-) => {
-  const file = event.target.files?.[0];
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
 
-  if (!file) return;
+    if (!file) return;
 
-  if (!file.type.startsWith("image/")) {
-    alert("Please upload an image file.");
-    return;
-  }
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload an image file.");
+      return;
+    }
 
-  const reader = new FileReader();
+    const reader = new FileReader();
 
-reader.onload = () => {
-  setBlueprint(reader.result as string);
-  setBlueprintScale(1);
-  setBlueprintOffsetX(0);
-  setBlueprintOffsetY(0);
-  setBlueprintOpacity(0.65);
-  setShowBlueprint(true);
-  setShowAdjustPanel(true);
-};
-  reader.readAsDataURL(file);
-};
-const handleRemoveBlueprint = () => {
-  setBlueprint(null);
-  setShowBlueprint(true);
-  setBlueprintScale(1);
-  setBlueprintOffsetX(0);
-  setBlueprintOffsetY(0);
-  setShowAdjustPanel(false);
-};
-  const healthyMachines = machines.filter(
+    reader.onload = () => {
+      setBlueprint(reader.result as string);
+      setBlueprintScale(1);
+      setBlueprintOffsetX(0);
+      setBlueprintOffsetY(0);
+      setBlueprintOpacity(0.65);
+      setShowBlueprint(true);
+      setShowAdjustPanel(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveBlueprint = () => {
+    setBlueprint(null);
+    setShowBlueprint(true);
+    setBlueprintScale(1);
+    setBlueprintOffsetX(0);
+    setBlueprintOffsetY(0);
+    setShowAdjustPanel(false);
+  };
+
+  // KPI counts
+  const healthyMachines = machineList.filter(
     (machine) => machine.status === "running"
   ).length;
 
-  const warningMachines = machines.filter(
+  const warningMachines = machineList.filter(
     (machine) => machine.status === "warning"
   ).length;
 
-  const criticalMachines = machines.filter(
+  const criticalMachines = machineList.filter(
     (machine) => machine.status === "critical"
   ).length;
 
@@ -520,749 +560,1134 @@ const handleRemoveBlueprint = () => {
       : selectedMachine.status === "warning"
       ? "warning"
       : "healthy";
- if (isPasswordRecovery) {
-  return (
-    <div className="login-page">
-      <div className="login-grid"></div>
 
-      <div className="login-glow login-glow-one"></div>
-      <div className="login-glow login-glow-two"></div>
+  // Drag & Move Pointer Handlers
+  const handleMachinePointerDown = (
+    e: React.PointerEvent,
+    machineId: string
+  ) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
 
-      <div className="login-container">
-        <div className="login-brand">
-          <div className="login-brand-icon">F</div>
+    setSelectedMachineId(machineId);
 
-          <div>
-            <h1>FactoryOS</h1>
-            <p>Industrial Intelligence Platform</p>
+    if (!factoryFloorRef.current) return;
+    const rect = factoryFloorRef.current.getBoundingClientRect();
+    const target = machineList.find((m) => m.id === machineId);
+    if (!target) return;
+
+    const curXPercent = parseFloat(target.x) || 50;
+    const curYPercent = parseFloat(target.y) || 50;
+
+    const curXpx = (curXPercent / 100) * rect.width;
+    const curYpx = (curYPercent / 100) * rect.height;
+
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    dragOffsetRef.current = {
+      offsetX: clickX - curXpx,
+      offsetY: clickY - curYpx,
+      rect,
+    };
+
+    setDraggingMachineId(machineId);
+    setShowDragHint(false);
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleMachinePointerMove = (e: React.PointerEvent) => {
+    if (!draggingMachineId || !dragOffsetRef.current) return;
+    const { offsetX, offsetY, rect } = dragOffsetRef.current;
+
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const newXpx = clickX - offsetX;
+    const newYpx = clickY - offsetY;
+
+    // Clamped boundary: 2% to 94% on X, 8% to 90% on Y
+    const newXPercent = Math.max(2, Math.min(94, (newXpx / rect.width) * 100));
+    const newYPercent = Math.max(8, Math.min(90, (newYpx / rect.height) * 100));
+
+    setMachineList((prev) =>
+      prev.map((m) =>
+        m.id === draggingMachineId
+          ? {
+              ...m,
+              x: `${newXPercent.toFixed(1)}%`,
+              y: `${newYPercent.toFixed(1)}%`,
+            }
+          : m
+      )
+    );
+  };
+
+  const handleMachinePointerUp = (e: React.PointerEvent) => {
+    if (draggingMachineId) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+      setDraggingMachineId(null);
+      dragOffsetRef.current = null;
+    }
+  };
+
+  // Fine Alignment / Nudge Handlers
+  const handleNudgeMachine = (dx: number, dy: number) => {
+    if (!selectedMachineId) return;
+    setMachineList((prev) =>
+      prev.map((m) => {
+        if (m.id !== selectedMachineId) return m;
+        const curX = parseFloat(m.x) || 50;
+        const curY = parseFloat(m.y) || 50;
+        const newX = Math.max(2, Math.min(94, +(curX + dx).toFixed(1)));
+        const newY = Math.max(8, Math.min(90, +(curY + dy).toFixed(1)));
+        return { ...m, x: `${newX}%`, y: `${newY}%` };
+      })
+    );
+  };
+
+  const handleSnapToGrid = () => {
+    if (!selectedMachineId) return;
+    setMachineList((prev) =>
+      prev.map((m) => {
+        if (m.id !== selectedMachineId) return m;
+        const curX = parseFloat(m.x) || 50;
+        const curY = parseFloat(m.y) || 50;
+        const snapX = Math.round(curX / 5) * 5;
+        const snapY = Math.round(curY / 5) * 5;
+        return {
+          ...m,
+          x: `${Math.max(5, Math.min(90, snapX))}%`,
+          y: `${Math.max(10, Math.min(85, snapY))}%`,
+        };
+      })
+    );
+  };
+
+  const handleCenterMachine = () => {
+    if (!selectedMachineId) return;
+    setMachineList((prev) =>
+      prev.map((m) =>
+        m.id === selectedMachineId ? { ...m, x: "48%", y: "45%" } : m
+      )
+    );
+  };
+
+  const handleDeleteMachine = (id: string) => {
+    if (
+      window.confirm(
+        `Are you sure you want to remove machine ${id} from the floor layout?`
+      )
+    ) {
+      setMachineList((prev) => {
+        const next = prev.filter((m) => m.id !== id);
+        if (selectedMachineId === id && next.length > 0) {
+          setSelectedMachineId(next[0].id);
+        }
+        return next;
+      });
+    }
+  };
+
+  const handleResetDefaultLayout = () => {
+    if (
+      window.confirm(
+        "Reset all machines and equipment to the original factory default positions?"
+      )
+    ) {
+      setMachineList(defaultMachines);
+      localStorage.removeItem("factoryos_machines");
+      setSelectedMachineId("M-11");
+    }
+  };
+
+  const handleAddMachine = (newMachine: Machine) => {
+    setMachineList((prev) => [...prev, newMachine]);
+    setSelectedMachineId(newMachine.id);
+  };
+
+  if (isPasswordRecovery) {
+    return (
+      <div className="login-page">
+        <div className="login-grid"></div>
+
+        <div className="login-glow login-glow-one"></div>
+        <div className="login-glow login-glow-two"></div>
+
+        <div className="login-container">
+          <div className="login-brand">
+            <div className="login-brand-icon">F</div>
+
+            <div>
+              <h1>FactoryOS</h1>
+              <p>Industrial Intelligence Platform</p>
+            </div>
           </div>
-        </div>
 
-        <div className="login-card">
-          <div className="login-heading">
-            <h2>Set new password</h2>
+          <div className="login-card">
+            <div className="login-heading">
+              <h2>Set new password</h2>
 
-            <p>
-              Create a new password for your FactoryOS
-              account.
-            </p>
-          </div>
-
-          <form onSubmit={handlePasswordReset}>
-            <div className="login-field">
-              <label htmlFor="new-password">
-                New Password
-              </label>
-
-              <div className="input-wrapper">
-                <span className="input-icon">◈</span>
-
-                <input
-                  id="new-password"
-                  type="password"
-                  placeholder="Enter your new password"
-                  value={newPassword}
-                  onChange={(event) =>
-                    setNewPassword(event.target.value)
-                  }
-                  autoComplete="new-password"
-                />
-              </div>
+              <p>
+                Create a new password for your FactoryOS account.
+              </p>
             </div>
 
-            <div className="login-field">
-              <label htmlFor="confirm-password">
-                Confirm Password
-              </label>
+            <form onSubmit={handlePasswordReset}>
+              <div className="login-field">
+                <label htmlFor="new-password">New Password</label>
 
-              <div className="input-wrapper">
-                <span className="input-icon">◈</span>
+                <div className="input-wrapper">
+                  <span className="input-icon">◈</span>
 
-                <input
-                  id="confirm-password"
-                  type="password"
-                  placeholder="Confirm your new password"
-                  value={confirmPassword}
-                  onChange={(event) =>
-                    setConfirmPassword(event.target.value)
-                  }
-                  autoComplete="new-password"
-                />
+                  <input
+                    id="new-password"
+                    type="password"
+                    placeholder="Enter your new password"
+                    value={newPassword}
+                    onChange={(event) =>
+                      setNewPassword(event.target.value)
+                    }
+                    autoComplete="new-password"
+                  />
+                </div>
               </div>
-            </div>
 
-            {resetError && (
-              <div className="login-error">
-                {resetError}
+              <div className="login-field">
+                <label htmlFor="confirm-password">Confirm Password</label>
+
+                <div className="input-wrapper">
+                  <span className="input-icon">◈</span>
+
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="Confirm your new password"
+                    value={confirmPassword}
+                    onChange={(event) =>
+                      setConfirmPassword(event.target.value)
+                    }
+                    autoComplete="new-password"
+                  />
+                </div>
               </div>
-            )}
 
-            {resetSuccess && (
-              <div
-                className="login-error"
-                style={{
-                  borderColor: "#22c55e",
-                  color: "#22c55e",
-                }}
+              {resetError && (
+                <div className="login-error">{resetError}</div>
+              )}
+
+              {resetSuccess && (
+                <div
+                  className="login-error"
+                  style={{
+                    borderColor: "#22c55e",
+                    color: "#22c55e",
+                  }}
+                >
+                  {resetSuccess}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="login-button"
+                disabled={isResettingPassword}
               >
-                {resetSuccess}
-              </div>
-            )}
+                <span>
+                  {isResettingPassword
+                    ? "Updating..."
+                    : "Update Password"}
+                </span>
 
-            <button
-              type="submit"
-              className="login-button"
-              disabled={isResettingPassword}
-            >
-              <span>
-                {isResettingPassword
-                  ? "Updating..."
-                  : "Update Password"}
-              </span>
+                <span className="login-arrow">→</span>
+              </button>
+            </form>
 
-              <span className="login-arrow">→</span>
-            </button>
-          </form>
-
-          <div className="login-security">
-            <span className="security-icon">✓</span>
-            <span>Secure password recovery</span>
+            <div className="login-security">
+              <span className="security-icon">✓</span>
+              <span>Secure password recovery</span>
+            </div>
           </div>
-        </div>
 
-        <div className="login-footer">
-          <span>FactoryOS</span>
-          <span>•</span>
-          <span>Industrial Intelligence Platform</span>
+          <div className="login-footer">
+            <span>FactoryOS</span>
+            <span>•</span>
+            <span>Industrial Intelligence Platform</span>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
-if (isAuthLoading) {
-  return null;
-}
-if (!isLoggedIn) {
-  return (
-    <Login
-      onLogin={(role) => {
-        setUserRole(role);
-        setIsLoggedIn(true);
-      }}
-    />
-  );
-}
+    );
+  }
+
+  if (isAuthLoading) {
+    return null;
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <Login
+        onLogin={(role) => {
+          setUserRole(role);
+          setIsLoggedIn(true);
+        }}
+      />
+    );
+  }
+
   return (
     <Layout
-  userRole={userRole}
-  currentPage={currentPage}
-  onNavigate={setCurrentPage}
-  onSignOut={async () => {
-    await supabase.auth.signOut();
-    setIsLoggedIn(false);
-    setUserRole("operator");
-    setCurrentPage("Dashboard");
-  }}
->
+      userRole={userRole}
+      currentPage={currentPage}
+      onNavigate={setCurrentPage}
+      onSignOut={async () => {
+        await supabase.auth.signOut();
+        setIsLoggedIn(false);
+        setUserRole("operator");
+        setCurrentPage("dashboard");
+      }}
+    >
       {currentPage === "AI Assistant" ? (
-        <AIAssistant machines={machines} alerts={alerts} onNavigate={setCurrentPage} />
+        <AIAssistant
+          machines={machineList}
+          alerts={alerts}
+          onNavigate={setCurrentPage}
+        />
       ) : currentPage === "Reports" ? (
-        <Reports machines={machines} alerts={alerts} onNavigate={setCurrentPage} />
+        <Reports
+          machines={machineList}
+          alerts={alerts}
+          onNavigate={setCurrentPage}
+        />
       ) : currentPage === "Alerts" ? (
-        <Alerts machines={machines} alerts={alerts} onNavigate={setCurrentPage} />
+        <Alerts
+          machines={machineList}
+          alerts={alerts}
+          onNavigate={setCurrentPage}
+        />
       ) : currentPage === "Machines" ? (
-        <Machines machines={machines} onNavigate={setCurrentPage} />
+        <Machines
+          machines={machineList}
+          onNavigate={setCurrentPage}
+        />
       ) : currentPage === "Maintenance" ? (
-        <Maintenance machines={machines} onNavigate={setCurrentPage} />
+        <Maintenance
+          machines={machineList}
+          onNavigate={setCurrentPage}
+        />
       ) : currentPage === "Analytics" ? (
-        <Analytics machines={machines} alerts={alerts} onNavigate={setCurrentPage} />
+        <Analytics
+          machines={machineList}
+          alerts={alerts}
+          onNavigate={setCurrentPage}
+        />
       ) : (
         <div className="factory-dashboard">
-        {/* FACTORY MAP */}
-        <section className="factory-area">
-          {blueprint && showBlueprint && (
-           <img
-              src={blueprint}
-              alt="Factory Blueprint"
-              className="factory-blueprint"
-              style={{
-                transform: `translate(${blueprintOffsetX}px, ${blueprintOffsetY}px) scale(${blueprintScale})`,
-                opacity: blueprintOpacity,
-                objectFit: blueprintFit,
-              }}
-            />
-          )}
-          <div className="factory-toolbar">
-  <div className="factory-toolbar-title">
-    <span className="factory-toolbar-icon">▥</span>
-
-    <div>
-      <strong>Factory Layout</strong>
-      <span>Digital factory floor</span>
-    </div>
-  </div>
-
-  <div className="factory-toolbar-actions">
-    {blueprint && (
-      <>
-        <button
-          type="button"
-          className="blueprint-action-button"
-          onClick={() => setShowBlueprint((current) => !current)}
-        >
-          {showBlueprint ? "Hide Blueprint" : "Show Blueprint"}
-        </button>
-
-        <div className="blueprint-scale-controls">
-          <button
-            type="button"
-            className="blueprint-scale-button"
-            title="Zoom Out"
-            onClick={() => setBlueprintScale((s) => Math.max(0.2, +(s - 0.1).toFixed(2)))}
+          {/* FACTORY FLOOR & MAP */}
+          <section
+            className="factory-area"
+            ref={factoryFloorRef}
+            onPointerMove={handleMachinePointerMove}
+            onPointerUp={handleMachinePointerUp}
           >
-            −
-          </button>
-          <span className="blueprint-scale-value">
-            {Math.round(blueprintScale * 100)}%
-          </span>
-          <button
-            type="button"
-            className="blueprint-scale-button"
-            title="Zoom In"
-            onClick={() => setBlueprintScale((s) => Math.min(3, +(s + 0.1).toFixed(2)))}
-          >
-            +
-          </button>
-        </div>
+            {/* Blueprint Background */}
+            {blueprint && showBlueprint && (
+              <img
+                src={blueprint}
+                alt="Factory Blueprint"
+                className="factory-blueprint"
+                style={{
+                  transform: `translate(${blueprintOffsetX}px, ${blueprintOffsetY}px) scale(${blueprintScale})`,
+                  opacity: blueprintOpacity,
+                  objectFit: blueprintFit,
+                }}
+              />
+            )}
 
-        <button
-          type="button"
-          className="blueprint-action-button"
-          style={{ borderColor: showAdjustPanel ? "#00b4d8" : undefined, color: showAdjustPanel ? "#ffffff" : undefined, background: showAdjustPanel ? "rgba(0,180,216,0.15)" : undefined }}
-          onClick={() => setShowAdjustPanel((v) => !v)}
-          title="Adjust Blueprint Scale, Position, and Opacity"
-        >
-          ⚙ Adjust
-        </button>
-      </>
-    )}
+            {/* Factory Room Zones */}
+            <div className="factory-room raw-material">Raw Material Area</div>
+            <div className="factory-room quality-room">Quality Control</div>
+            <div className="factory-room finished-room">Finished Goods</div>
+            <div className="factory-room electrical-room">Electrical Substation</div>
+            <div className="factory-room maintenance-room">Maintenance Workshop</div>
+            <div className="factory-room compressor-room">Air Compressor Unit</div>
 
-    <label
-      htmlFor="blueprint-upload"
-      className="blueprint-upload-button"
-    >
-      <span>↑</span>
-      Upload Blueprint
-    </label>
+            {/* Floor Transit Paths */}
+            <div className="floor-path path-one"></div>
 
-    <input
-      id="blueprint-upload"
-      type="file"
-      accept="image/png,image/jpeg,image/jpg,image/webp"
-      onChange={handleBlueprintUpload}
-      hidden
-    />
+            {/* Drag & Align Hint */}
+            {showDragHint && (
+              <div className="layout-drag-hint">
+                <span>💡 Tip:</span>
+                Drag any machine card to align it anywhere on the floor. Click ＋ to add equipment.
+              </div>
+            )}
 
-    {blueprint && (
-      <button
-        type="button"
-        className="blueprint-delete-button"
-        onClick={handleRemoveBlueprint}
-        title="Remove Blueprint"
-        aria-label="Remove Blueprint"
-      >
-        🗑
-      </button>
-    )}
-  </div>
-</div>
-
-
-          {/* Map Controls */}
-          <div className="map-controls">
-            <button
-              type="button"
-              title="Zoom In (+10%)"
-              onClick={() => setBlueprintScale((s) => Math.min(3, +(s + 0.1).toFixed(2)))}
-            >
-              +
-            </button>
-            <button
-              type="button"
-              title="Zoom Out (-10%)"
-              onClick={() => setBlueprintScale((s) => Math.max(0.2, +(s - 0.1).toFixed(2)))}
-            >
-              −
-            </button>
-            <button
-              type="button"
-              title="Reset Position & Zoom"
-              onClick={() => {
-                setBlueprintScale(1);
-                setBlueprintOffsetX(0);
-                setBlueprintOffsetY(0);
-              }}
-            >
-              ⛶
-            </button>
-          </div>
-
-          {/* Blueprint Adjustment Drawer */}
-          {blueprint && showBlueprint && showAdjustPanel && (
-            <div className="blueprint-adjust-drawer">
-              <div className="blueprint-adjust-header">
-                <h4>⚙ Blueprint Alignment & Scale</h4>
-                <button
-                  type="button"
-                  className="blueprint-adjust-close"
-                  onClick={() => setShowAdjustPanel(false)}
+            {/* Machines on Floor Layout */}
+            {machineList.map((machine) => {
+              const isSelected = selectedMachineId === machine.id;
+              const isDragging = draggingMachineId === machine.id;
+              return (
+                <div
+                  key={machine.id}
+                  className={`machine machine-${machine.status} ${
+                    isSelected ? "machine-selected" : ""
+                  } ${isDragging ? "is-dragging" : ""}`}
+                  style={{
+                    left: machine.x,
+                    top: machine.y,
+                    cursor: isDragging ? "grabbing" : "grab",
+                  }}
+                  onPointerDown={(e) => handleMachinePointerDown(e, machine.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedMachineId(machine.id);
+                  }}
+                  title={`Machine ${machine.id}: ${machine.name} (${machine.status}) • Drag to reposition`}
                 >
-                  ✕
-                </button>
-              </div>
-
-              {/* Scale / Zoom */}
-              <div className="adjust-control-group">
-                <div className="adjust-control-label">
-                  <span>Zoom / Scale</span>
-                  <strong style={{ color: "#00b4d8" }}>{Math.round(blueprintScale * 100)}%</strong>
+                  <div className="machine-symbol">
+                    {getMachineIcon(machine.name)}
+                  </div>
+                  <div className="machine-text">
+                    <strong>{machine.id}</strong>
+                    <small>{machine.name}</small>
+                  </div>
+                  <span className="machine-light" />
+                  {isSelected && (
+                    <div className="machine-coords-tag">
+                      {machine.x}, {machine.y} {isDragging ? "• Moving" : ""}
+                    </div>
+                  )}
                 </div>
-                <input
-                  type="range"
-                  min="0.2"
-                  max="3.0"
-                  step="0.05"
-                  className="adjust-control-slider"
-                  value={blueprintScale}
-                  onChange={(e) => setBlueprintScale(parseFloat(e.target.value))}
-                />
-              </div>
+              );
+            })}
 
-              {/* Opacity */}
-              <div className="adjust-control-group">
-                <div className="adjust-control-label">
-                  <span>Opacity</span>
-                  <strong style={{ color: "#00ffc4" }}>{Math.round(blueprintOpacity * 100)}%</strong>
+            {/* Floating Machine Alignment Dock */}
+            {selectedMachine && (
+              <div className="layout-align-dock" onClick={(e) => e.stopPropagation()}>
+                <div className="align-dock-info">
+                  <span className={`align-dock-status ${selectedMachine.status}`}>●</span>
+                  <strong>{selectedMachine.id}</strong>
+                  <span className="align-dock-name">{selectedMachine.name}</span>
+                  <span className="align-dock-coords">
+                    {selectedMachine.x}, {selectedMachine.y}
+                  </span>
                 </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="1.0"
-                  step="0.05"
-                  className="adjust-control-slider"
-                  value={blueprintOpacity}
-                  onChange={(e) => setBlueprintOpacity(parseFloat(e.target.value))}
-                />
-              </div>
 
-              {/* Position Offset X */}
-              <div className="adjust-control-group">
-                <div className="adjust-control-label">
-                  <span>Horizontal Pan (X)</span>
-                  <span>{blueprintOffsetX}px</span>
-                </div>
-                <input
-                  type="range"
-                  min="-300"
-                  max="300"
-                  step="5"
-                  className="adjust-control-slider"
-                  value={blueprintOffsetX}
-                  onChange={(e) => setBlueprintOffsetX(parseInt(e.target.value))}
-                />
-              </div>
-
-              {/* Position Offset Y */}
-              <div className="adjust-control-group">
-                <div className="adjust-control-label">
-                  <span>Vertical Pan (Y)</span>
-                  <span>{blueprintOffsetY}px</span>
-                </div>
-                <input
-                  type="range"
-                  min="-300"
-                  max="300"
-                  step="5"
-                  className="adjust-control-slider"
-                  value={blueprintOffsetY}
-                  onChange={(e) => setBlueprintOffsetY(parseInt(e.target.value))}
-                />
-              </div>
-
-              {/* D-Pad Nudge Buttons */}
-              <div className="adjust-control-group">
-                <div className="adjust-control-label">
-                  <span>Nudge Alignment (10px)</span>
-                </div>
-                <div className="adjust-dpad-row">
-                  <div></div>
+                <div className="align-dock-nudges">
                   <button
                     type="button"
-                    className="adjust-dpad-btn"
-                    title="Nudge Up"
-                    onClick={() => setBlueprintOffsetY((y) => y - 10)}
-                  >
-                    ▲
-                  </button>
-                  <div></div>
-                  <button
-                    type="button"
-                    className="adjust-dpad-btn"
-                    title="Nudge Left"
-                    onClick={() => setBlueprintOffsetX((x) => x - 10)}
+                    onClick={() => handleNudgeMachine(-1, 0)}
+                    title="Nudge Left 1%"
                   >
                     ◀
                   </button>
                   <button
                     type="button"
-                    className="adjust-dpad-btn"
-                    title="Center"
-                    onClick={() => { setBlueprintOffsetX(0); setBlueprintOffsetY(0); }}
+                    onClick={() => handleNudgeMachine(0, -1)}
+                    title="Nudge Up 1%"
                   >
-                    •
+                    ▲
                   </button>
                   <button
                     type="button"
-                    className="adjust-dpad-btn"
-                    title="Nudge Right"
-                    onClick={() => setBlueprintOffsetX((x) => x + 10)}
-                  >
-                    ▶
-                  </button>
-                  <div></div>
-                  <button
-                    type="button"
-                    className="adjust-dpad-btn"
-                    title="Nudge Down"
-                    onClick={() => setBlueprintOffsetY((y) => y + 10)}
+                    onClick={() => handleNudgeMachine(0, 1)}
+                    title="Nudge Down 1%"
                   >
                     ▼
                   </button>
-                  <div></div>
-                </div>
-              </div>
-
-              {/* Fit Mode */}
-              <div className="adjust-control-group">
-                <div className="adjust-control-label">
-                  <span>Display Mode</span>
-                </div>
-                <div className="adjust-fit-pills">
                   <button
                     type="button"
-                    className={`adjust-fit-btn ${blueprintFit === "contain" ? "active" : ""}`}
-                    onClick={() => setBlueprintFit("contain")}
+                    onClick={() => handleNudgeMachine(1, 0)}
+                    title="Nudge Right 1%"
                   >
-                    Fit (Aspect Ratio)
+                    ▶
+                  </button>
+                </div>
+
+                <div className="align-dock-tools">
+                  <button
+                    type="button"
+                    onClick={handleSnapToGrid}
+                    title="Snap to 5% Floor Grid"
+                  >
+                    ⊞ Snap Grid
                   </button>
                   <button
                     type="button"
-                    className={`adjust-fit-btn ${blueprintFit === "cover" ? "active" : ""}`}
-                    onClick={() => setBlueprintFit("cover")}
+                    onClick={handleCenterMachine}
+                    title="Center on Floor"
                   >
-                    Fill (Cover Floor)
+                    ⊙ Center
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-align-delete"
+                    onClick={() => handleDeleteMachine(selectedMachine.id)}
+                    title="Remove machine from layout"
+                  >
+                    🗑
                   </button>
                 </div>
               </div>
+            )}
 
-              {/* Reset All */}
+            {/* Floor Toolbar */}
+            <div className="factory-toolbar">
+              <div className="factory-toolbar-title">
+                <span className="factory-toolbar-icon">▥</span>
+                <div>
+                  <strong>Factory Layout & Digital Twin</strong>
+                  <span>
+                    {machineList.length} machines deployed • Click & drag to align
+                  </span>
+                </div>
+              </div>
+
+              <div className="factory-toolbar-actions">
+                {/* Plus Sign Add Machine Button */}
+                <button
+                  type="button"
+                  className="btn-add-machine-toolbar"
+                  onClick={() => setShowAddMachineModal(true)}
+                  title="Search & Add Machines / Equipment to Layout"
+                >
+                  <span className="btn-add-plus">＋</span>
+                  <span>Add Machine</span>
+                </button>
+
+                {blueprint && (
+                  <>
+                    <button
+                      type="button"
+                      className="blueprint-action-button"
+                      onClick={() => setShowBlueprint((current) => !current)}
+                    >
+                      {showBlueprint ? "Hide Blueprint" : "Show Blueprint"}
+                    </button>
+
+                    <div className="blueprint-scale-controls">
+                      <button
+                        type="button"
+                        className="blueprint-scale-button"
+                        title="Zoom Out"
+                        onClick={() =>
+                          setBlueprintScale((s) =>
+                            Math.max(0.2, +(s - 0.1).toFixed(2))
+                          )
+                        }
+                      >
+                        −
+                      </button>
+                      <span className="blueprint-scale-value">
+                        {Math.round(blueprintScale * 100)}%
+                      </span>
+                      <button
+                        type="button"
+                        className="blueprint-scale-button"
+                        title="Zoom In"
+                        onClick={() =>
+                          setBlueprintScale((s) =>
+                            Math.min(3, +(s + 0.1).toFixed(2))
+                          )
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="blueprint-action-button"
+                      style={{
+                        borderColor: showAdjustPanel ? "#00b4d8" : undefined,
+                        color: showAdjustPanel ? "#ffffff" : undefined,
+                        background: showAdjustPanel
+                          ? "rgba(0,180,216,0.15)"
+                          : undefined,
+                      }}
+                      onClick={() => setShowAdjustPanel((v) => !v)}
+                      title="Adjust Blueprint Scale, Position, and Opacity"
+                    >
+                      ⚙ Adjust
+                    </button>
+                  </>
+                )}
+
+                <label
+                  htmlFor="blueprint-upload"
+                  className="blueprint-upload-button"
+                >
+                  <span>↑</span>
+                  Upload Blueprint
+                </label>
+
+                <input
+                  id="blueprint-upload"
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={handleBlueprintUpload}
+                  hidden
+                />
+
+                {blueprint && (
+                  <button
+                    type="button"
+                    className="blueprint-delete-button"
+                    onClick={handleRemoveBlueprint}
+                    title="Remove Blueprint"
+                    aria-label="Remove Blueprint"
+                  >
+                    🗑
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="blueprint-scale-button"
+                  style={{ width: "auto", padding: "0 8px", fontSize: "11px" }}
+                  onClick={handleResetDefaultLayout}
+                  title="Reset machines to factory default layout"
+                >
+                  ↺ Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Map Controls */}
+            <div className="map-controls">
               <button
                 type="button"
-                className="btn-maint-export"
-                style={{ marginTop: "4px", textAlign: "center", width: "100%" }}
+                title="Zoom In (+10%)"
+                onClick={() =>
+                  setBlueprintScale((s) =>
+                    Math.min(3, +(s + 0.1).toFixed(2))
+                  )
+                }
+              >
+                +
+              </button>
+              <button
+                type="button"
+                title="Zoom Out (-10%)"
+                onClick={() =>
+                  setBlueprintScale((s) =>
+                    Math.max(0.2, +(s - 0.1).toFixed(2))
+                  )
+                }
+              >
+                −
+              </button>
+              <button
+                type="button"
+                title="Reset Position & Zoom"
                 onClick={() => {
                   setBlueprintScale(1);
                   setBlueprintOffsetX(0);
                   setBlueprintOffsetY(0);
-                  setBlueprintOpacity(0.65);
-                  setBlueprintFit("contain");
                 }}
               >
-                ⛶ Reset Alignment & Zoom
+                ⛶
               </button>
             </div>
-          )}
 
-          <div className="live-map-label">
-            <span></span>
-            Live Factory View
-          </div>
-        </section>
-
-        {/* ALERT PANEL */}
-        <section className="alerts-panel">
-          <div className="panel-heading">
-            <strong>Live Alerts ({alerts.length})</strong>
-            <span>View All</span>
-          </div>
-
-          {alerts.map((alert, index) => (
-            <div className="alert-item" key={index}>
-              <div className={`alert-icon ${alert.type}`}>
-                {alert.type === "critical"
-                  ? "♨"
-                  : alert.type === "warning"
-                  ? "⚠"
-                  : "●"}
-              </div>
-
-              <div className="alert-content">
-                <div className="alert-title-row">
-                  <strong>{alert.machine}</strong>
-                  <small>{alert.time}</small>
+            {/* Blueprint Adjustment Drawer */}
+            {blueprint && showBlueprint && showAdjustPanel && (
+              <div className="blueprint-adjust-drawer">
+                <div className="blueprint-adjust-header">
+                  <h4>⚙ Blueprint Alignment & Scale</h4>
+                  <button
+                    type="button"
+                    className="blueprint-adjust-close"
+                    onClick={() => setShowAdjustPanel(false)}
+                  >
+                    ✕
+                  </button>
                 </div>
 
-                <p>{alert.message}</p>
+                {/* Scale / Zoom */}
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Zoom / Scale</span>
+                    <strong style={{ color: "#00b4d8" }}>
+                      {Math.round(blueprintScale * 100)}%
+                    </strong>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="3.0"
+                    step="0.05"
+                    className="adjust-control-slider"
+                    value={blueprintScale}
+                    onChange={(e) =>
+                      setBlueprintScale(parseFloat(e.target.value))
+                    }
+                  />
+                </div>
+
+                {/* Opacity */}
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Opacity</span>
+                    <strong style={{ color: "#00ffc4" }}>
+                      {Math.round(blueprintOpacity * 100)}%
+                    </strong>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1.0"
+                    step="0.05"
+                    className="adjust-control-slider"
+                    value={blueprintOpacity}
+                    onChange={(e) =>
+                      setBlueprintOpacity(parseFloat(e.target.value))
+                    }
+                  />
+                </div>
+
+                {/* Position Offset X */}
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Horizontal Pan (X)</span>
+                    <span>{blueprintOffsetX}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-300"
+                    max="300"
+                    step="5"
+                    className="adjust-control-slider"
+                    value={blueprintOffsetX}
+                    onChange={(e) =>
+                      setBlueprintOffsetX(parseInt(e.target.value))
+                    }
+                  />
+                </div>
+
+                {/* Position Offset Y */}
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Vertical Pan (Y)</span>
+                    <span>{blueprintOffsetY}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-300"
+                    max="300"
+                    step="5"
+                    className="adjust-control-slider"
+                    value={blueprintOffsetY}
+                    onChange={(e) =>
+                      setBlueprintOffsetY(parseInt(e.target.value))
+                    }
+                  />
+                </div>
+
+                {/* D-Pad Nudge Buttons */}
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Nudge Alignment (10px)</span>
+                  </div>
+                  <div className="adjust-dpad-row">
+                    <div></div>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      title="Nudge Up"
+                      onClick={() => setBlueprintOffsetY((y) => y - 10)}
+                    >
+                      ▲
+                    </button>
+                    <div></div>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      title="Nudge Left"
+                      onClick={() => setBlueprintOffsetX((x) => x - 10)}
+                    >
+                      ◀
+                    </button>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      title="Center"
+                      onClick={() => {
+                        setBlueprintOffsetX(0);
+                        setBlueprintOffsetY(0);
+                      }}
+                    >
+                      •
+                    </button>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      title="Nudge Right"
+                      onClick={() => setBlueprintOffsetX((x) => x + 10)}
+                    >
+                      ▶
+                    </button>
+                    <div></div>
+                    <button
+                      type="button"
+                      className="adjust-dpad-btn"
+                      title="Nudge Down"
+                      onClick={() => setBlueprintOffsetY((y) => y + 10)}
+                    >
+                      ▼
+                    </button>
+                    <div></div>
+                  </div>
+                </div>
+
+                {/* Fit Mode */}
+                <div className="adjust-control-group">
+                  <div className="adjust-control-label">
+                    <span>Display Mode</span>
+                  </div>
+                  <div className="adjust-fit-pills">
+                    <button
+                      type="button"
+                      className={`adjust-fit-btn ${
+                        blueprintFit === "contain" ? "active" : ""
+                      }`}
+                      onClick={() => setBlueprintFit("contain")}
+                    >
+                      Fit (Aspect Ratio)
+                    </button>
+                    <button
+                      type="button"
+                      className={`adjust-fit-btn ${
+                        blueprintFit === "cover" ? "active" : ""
+                      }`}
+                      onClick={() => setBlueprintFit("cover")}
+                    >
+                      Fill (Cover Floor)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Reset All */}
+                <button
+                  type="button"
+                  className="btn-maint-export"
+                  style={{
+                    marginTop: "4px",
+                    textAlign: "center",
+                    width: "100%",
+                  }}
+                  onClick={() => {
+                    setBlueprintScale(1);
+                    setBlueprintOffsetX(0);
+                    setBlueprintOffsetY(0);
+                    setBlueprintOpacity(0.65);
+                    setBlueprintFit("contain");
+                  }}
+                >
+                  ⛶ Reset Alignment & Zoom
+                </button>
               </div>
+            )}
+
+            <div className="live-map-label">
+              <span></span>
+              Live Factory View
             </div>
-          ))}
-        </section>
+          </section>
 
-        {/* BOTTOM PANELS */}
-        <section className="bottom-panels">
-          {/* Production */}
-          <div className="info-card production-card">
-            <h3>Production</h3>
-
-            <div className="production-row">
-              <span>Today</span>
-              <strong>2,481 Units</strong>
-            </div>
-
-            <div className="production-row">
-              <span>Target</span>
-              <strong>3,500 Units</strong>
-            </div>
-
-            <div className="progress">
-              <div style={{ width: "71%" }}></div>
-            </div>
-
-            <div className="efficiency">
-              <span>Efficiency</span>
-              <strong>71%</strong>
-            </div>
-
-            <div className="machine-overview">
-              <div>
-                <span className="overview-dot green"></span>
-                Running
-                <strong>{healthyMachines}</strong>
-              </div>
-
-              <div>
-                <span className="overview-dot yellow"></span>
-                Warning
-                <strong>{warningMachines}</strong>
-              </div>
-
-              <div>
-                <span className="overview-dot red"></span>
-                Critical
-                <strong>{criticalMachines}</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* Selected Machine */}
-          <div className="info-card selected-machine">
-            <div className="machine-card-header">
-              <div>
-                <span
-                  className={`critical-dot ${selectedMachine.status}`}
-                ></span>
-
-                {selectedMachine.id} {selectedMachine.name}
-              </div>
-
-              <span className={`status-label ${selectedMachine.status}`}>
-                {getStatusLabel(selectedMachine.status)}
+          {/* ALERT PANEL */}
+          <section className="alerts-panel">
+            <div className="panel-heading">
+              <strong>Live Alerts ({alerts.length})</strong>
+              <span
+                style={{ cursor: "pointer", color: "#00b4d8" }}
+                onClick={() => setCurrentPage("Alerts")}
+              >
+                View All
               </span>
             </div>
 
-            <div className="machine-details">
-              <div className="machine-visual">
-                <span>⚙</span>
+            {alerts.map((alert, index) => (
+              <div className="alert-item" key={index}>
+                <div className={`alert-icon ${alert.type}`}>
+                  {alert.type === "critical"
+                    ? "♨"
+                    : alert.type === "warning"
+                    ? "⚠"
+                    : "●"}
+                </div>
+
+                <div className="alert-content">
+                  <div className="alert-title-row">
+                    <strong>{alert.machine}</strong>
+                    <small>{alert.time}</small>
+                  </div>
+
+                  <p>{alert.message}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          {/* BOTTOM PANELS */}
+          <section className="bottom-panels">
+            {/* Production */}
+            <div className="info-card production-card">
+              <h3>Production</h3>
+
+              <div className="production-row">
+                <span>Today</span>
+                <strong>2,481 Units</strong>
               </div>
 
-              <div className="detail-list">
+              <div className="production-row">
+                <span>Target</span>
+                <strong>3,500 Units</strong>
+              </div>
+
+              <div className="progress">
+                <div style={{ width: "71%" }}></div>
+              </div>
+
+              <div className="efficiency">
+                <span>Efficiency</span>
+                <strong>71%</strong>
+              </div>
+
+              <div className="machine-overview">
                 <div>
-                  <span>Machine ID</span>
-                  <strong>{selectedMachine.id}</strong>
+                  <span className="overview-dot green"></span>
+                  Running
+                  <strong>{healthyMachines}</strong>
                 </div>
 
                 <div>
-                  <span>Status</span>
-                  <strong className={`status-text ${selectedMachine.status}`}>
-                    {getStatusLabel(selectedMachine.status)}
+                  <span className="overview-dot yellow"></span>
+                  Warning
+                  <strong>{warningMachines}</strong>
+                </div>
+
+                <div>
+                  <span className="overview-dot red"></span>
+                  Critical
+                  <strong>{criticalMachines}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Selected Machine */}
+            <div className="info-card selected-machine">
+              <div className="machine-card-header">
+                <div>
+                  <span
+                    className={`critical-dot ${selectedMachine.status}`}
+                  ></span>
+
+                  {selectedMachine.id} {selectedMachine.name}
+                </div>
+
+                <span className={`status-label ${selectedMachine.status}`}>
+                  {getStatusLabel(selectedMachine.status)}
+                </span>
+              </div>
+
+              <div className="machine-details">
+                <div className="machine-visual">
+                  <span>{getMachineIcon(selectedMachine.name)}</span>
+                </div>
+
+                <div className="detail-list">
+                  <div>
+                    <span>Machine ID</span>
+                    <strong>{selectedMachine.id}</strong>
+                  </div>
+
+                  <div>
+                    <span>Status</span>
+                    <strong className={`status-text ${selectedMachine.status}`}>
+                      {getStatusLabel(selectedMachine.status)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Location</span>
+                    <strong>{selectedMachine.location}</strong>
+                  </div>
+
+                  <div>
+                    <span>Installed On</span>
+                    <strong>{selectedMachine.installedOn}</strong>
+                  </div>
+
+                  <div>
+                    <span>Last Maintenance</span>
+                    <strong>{selectedMachine.lastMaintenance}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Parameters */}
+            <div className="info-card parameters-card">
+              <h3>Live Parameters</h3>
+
+              <div className="parameter">
+                <div>
+                  <span>Temperature</span>
+                  <strong
+                    className={
+                      selectedMachine.temperature > 80
+                        ? "red-text"
+                        : selectedMachine.temperature > 65
+                        ? "yellow-text"
+                        : "green-text"
+                    }
+                  >
+                    {selectedMachine.temperature} °C
+                  </strong>
+                </div>
+
+                <div className="mini-chart red-chart">╱╲╱╲╲╱╲╱╲</div>
+              </div>
+
+              <div className="parameter">
+                <div>
+                  <span>Vibration</span>
+                  <strong
+                    className={
+                      selectedMachine.vibration > 6
+                        ? "red-text"
+                        : selectedMachine.vibration > 3
+                        ? "yellow-text"
+                        : "green-text"
+                    }
+                  >
+                    {selectedMachine.vibration} mm/s
+                  </strong>
+                </div>
+
+                <div className="mini-chart red-chart">╲╱╲╱╱╲╱╲</div>
+              </div>
+
+              <div className="parameter">
+                <div>
+                  <span>Current</span>
+                  <strong
+                    className={
+                      selectedMachine.current > 12
+                        ? "red-text"
+                        : selectedMachine.current > 10
+                        ? "yellow-text"
+                        : "green-text"
+                    }
+                  >
+                    {selectedMachine.current} A
+                  </strong>
+                </div>
+
+                <div className="mini-chart red-chart">╱╱╲╱╲╲╱</div>
+              </div>
+
+              <div className="parameter-row">
+                <div>
+                  <span>Speed</span>
+                  <strong className="yellow-text">
+                    {selectedMachine.speed.toLocaleString()} RPM
                   </strong>
                 </div>
 
                 <div>
-                  <span>Location</span>
-                  <strong>{selectedMachine.location}</strong>
+                  <span>Runtime</span>
+                  <strong className="green-text">
+                    {selectedMachine.runtime} h
+                  </strong>
                 </div>
+              </div>
+            </div>
 
+            {/* Health */}
+            <div className="info-card health-card">
+              <h3>Health Score</h3>
+
+              <div className={`health-circle ${healthClass}`}>
                 <div>
-                  <span>Installed On</span>
-                  <strong>{selectedMachine.installedOn}</strong>
-                </div>
+                  <strong>{selectedMachine.health}%</strong>
 
-                <div>
-                  <span>Last Maintenance</span>
-                  <strong>{selectedMachine.lastMaintenance}</strong>
+                  <span>{getStatusLabel(selectedMachine.status)}</span>
                 </div>
               </div>
+
+              <div className="failure">
+                <span>Failure Probability</span>
+
+                <strong className={healthClass}>
+                  {selectedMachine.failureProbability}%
+                </strong>
+              </div>
+
+              <div className="failure-time">
+                Est. Failure In
+                <strong>{selectedMachine.failureTime}</strong>
+              </div>
             </div>
-          </div>
 
-          {/* Parameters */}
-          <div className="info-card parameters-card">
-            <h3>Live Parameters</h3>
+            {/* Maintenance Recommendation */}
+            <div className="info-card recommendation-card">
+              <h3>Maintenance Recommendation</h3>
 
-            <div className="parameter">
-              <div>
-                <span>Temperature</span>
+              <div className="recommendation">
                 <strong
-                  className={
-                    selectedMachine.temperature > 80
-                      ? "red-text"
-                      : selectedMachine.temperature > 65
-                      ? "yellow-text"
-                      : "green-text"
-                  }
+                  className={`recommendation-title ${selectedMachine.status}`}
                 >
-                  {selectedMachine.temperature} °C
+                  ⚠ {selectedMachine.recommendation}
                 </strong>
-              </div>
 
-              <div className="mini-chart red-chart">
-                ╱╲╱╲╲╱╲╱╲
-              </div>
-            </div>
+                <hr />
 
-            <div className="parameter">
-              <div>
-                <span>Vibration</span>
-                <strong
-                  className={
-                    selectedMachine.vibration > 6
-                      ? "red-text"
-                      : selectedMachine.vibration > 3
-                      ? "yellow-text"
-                      : "green-text"
-                  }
+                <h4>AI Diagnosis</h4>
+
+                <p>{selectedMachine.diagnosis}</p>
+
+                <hr />
+
+                <h4>Recommended Action</h4>
+
+                <p>
+                  {selectedMachine.status === "critical"
+                    ? "Immediate maintenance required."
+                    : selectedMachine.status === "warning"
+                    ? "Maintenance should be scheduled soon."
+                    : "No immediate maintenance action required."}
+                </p>
+
+                <button
+                  className="work-order-button"
+                  type="button"
+                  onClick={() => setCurrentPage("Maintenance")}
                 >
-                  {selectedMachine.vibration} mm/s
-                </strong>
-              </div>
-
-              <div className="mini-chart red-chart">
-                ╲╱╲╱╱╲╱╲
+                  Create Work Order
+                </button>
               </div>
             </div>
+          </section>
 
-            <div className="parameter">
-              <div>
-                <span>Current</span>
-                <strong
-                  className={
-                    selectedMachine.current > 12
-                      ? "red-text"
-                      : selectedMachine.current > 10
-                      ? "yellow-text"
-                      : "green-text"
-                  }
-                >
-                  {selectedMachine.current} A
-                </strong>
-              </div>
-
-              <div className="mini-chart red-chart">
-                ╱╱╲╱╲╲╱
-              </div>
-            </div>
-
-            <div className="parameter-row">
-              <div>
-                <span>Speed</span>
-                <strong className="yellow-text">
-                  {selectedMachine.speed.toLocaleString()} RPM
-                </strong>
-              </div>
-
-              <div>
-                <span>Runtime</span>
-                <strong className="green-text">
-                  {selectedMachine.runtime} h
-                </strong>
-              </div>
-            </div>
-          </div>
-
-          {/* Health */}
-          <div className="info-card health-card">
-            <h3>Health Score</h3>
-
-            <div className={`health-circle ${healthClass}`}>
-              <div>
-                <strong>{selectedMachine.health}%</strong>
-
-                <span>{getStatusLabel(selectedMachine.status)}</span>
-              </div>
-            </div>
-
-            <div className="failure">
-              <span>Failure Probability</span>
-
-              <strong className={healthClass}>
-                {selectedMachine.failureProbability}%
-              </strong>
-            </div>
-
-            <div className="failure-time">
-              Est. Failure In
-
-              <strong>{selectedMachine.failureTime}</strong>
-            </div>
-          </div>
-
-          {/* Maintenance Recommendation */}
-          <div className="info-card recommendation-card">
-            <h3>Maintenance Recommendation</h3>
-
-            <div className="recommendation">
-              <strong
-                className={`recommendation-title ${selectedMachine.status}`}
-              >
-                ⚠ {selectedMachine.recommendation}
-              </strong>
-
-              <hr />
-
-              <h4>AI Diagnosis</h4>
-
-              <p>{selectedMachine.diagnosis}</p>
-
-              <hr />
-
-              <h4>Recommended Action</h4>
-
-              <p>
-                {selectedMachine.status === "critical"
-                  ? "Immediate maintenance required."
-                  : selectedMachine.status === "warning"
-                  ? "Maintenance should be scheduled soon."
-                  : "No immediate maintenance action required."}
-              </p>
-
-              <button className="work-order-button" type="button">
-                Create Work Order
-              </button>
-            </div>
-          </div>
-        </section>
-      </div>
+          {/* Add Machine & Equipment Modal */}
+          <AddMachineModal
+            isOpen={showAddMachineModal}
+            onClose={() => setShowAddMachineModal(false)}
+            onAddMachine={handleAddMachine}
+            existingCount={machineList.length}
+          />
+        </div>
       )}
     </Layout>
   );

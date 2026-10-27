@@ -1502,3 +1502,213 @@
   color: #ffffff;
   font-weight: 600;
 }
+
+
+/* =========================================
+   FACTORY LAYOUT DRAG & DROP & ALIGNMENT
+========================================= */
+
+.btn-add-machine-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #00b4d8, #0077b6);
+  border: 1px solid #00e5ff;
+  color: #04101b;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(0, 180, 216, 0.45);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-add-machine-toolbar:hover {
+  background: #00e5ff;
+  color: #02080f;
+  transform: translateY(-1px);
+  box-shadow: 0 0 22px rgba(0, 229, 255, 0.6);
+}
+
+.btn-add-machine-toolbar .btn-add-plus {
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.machine {
+  user-select: none;
+  touch-action: none;
+}
+
+.machine.is-dragging {
+  cursor: grabbing !important;
+  z-index: 120 !important;
+  transition: none !important;
+  transform: translate(-50%, -4px) scale(1.06) !important;
+  box-shadow: 0 0 28px rgba(0, 229, 255, 0.75), 0 0 8px #00e5ff !important;
+  border-color: #00e5ff !important;
+}
+
+.machine-coords-tag {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #00b4d8;
+  color: #04101b;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+  z-index: 150;
+}
+
+/* Alignment Dock */
+.layout-align-dock {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(13, 24, 36, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid #1f3d5b;
+  border-radius: 28px;
+  padding: 6px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 180, 216, 0.2);
+  color: #eaf3fc;
+}
+
+.align-dock-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 10px;
+  border-right: 1px solid #1d354d;
+}
+
+.align-dock-status {
+  font-size: 10px;
+}
+.align-dock-status.running { color: #20d873; }
+.align-dock-status.warning { color: #ffd21c; }
+.align-dock-status.critical { color: #ff4650; }
+
+.align-dock-info strong {
+  font-size: 13px;
+  color: #ffffff;
+}
+
+.align-dock-name {
+  font-size: 12px;
+  color: #8fa8c2;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.align-dock-coords {
+  font-size: 11px;
+  color: #00b4d8;
+  font-weight: 700;
+  background: rgba(0, 180, 216, 0.12);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.align-dock-nudges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 10px;
+  border-right: 1px solid #1d354d;
+}
+
+.align-dock-nudges button {
+  width: 26px;
+  height: 26px;
+  background: #14283c;
+  border: 1px solid #244160;
+  border-radius: 5px;
+  color: #dceaf7;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.align-dock-nudges button:hover {
+  background: #00b4d8;
+  color: #030d17;
+  border-color: #00e5ff;
+}
+
+.align-dock-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.align-dock-tools button {
+  padding: 4px 10px;
+  background: #14283c;
+  border: 1px solid #244160;
+  border-radius: 5px;
+  color: #bcd0e4;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.align-dock-tools button:hover {
+  background: #1e3d5c;
+  color: #ffffff;
+  border-color: #386b9a;
+}
+
+.align-dock-tools .btn-align-delete {
+  background: rgba(239, 69, 79, 0.15);
+  border-color: rgba(239, 69, 79, 0.35);
+  color: #ff6b74;
+}
+
+.align-dock-tools .btn-align-delete:hover {
+  background: #ef454f;
+  color: #ffffff;
+}
+
+.layout-drag-hint {
+  position: absolute;
+  top: 60px;
+  left: 18px;
+  background: rgba(13, 24, 36, 0.85);
+  backdrop-filter: blur(6px);
+  border: 1px solid #1a334b;
+  border-radius: 6px;
+  padding: 4px 10px;
+  color: #8da4be;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.layout-drag-hint span {
+  color: #00b4d8;
+  font-weight: 700;
+}
