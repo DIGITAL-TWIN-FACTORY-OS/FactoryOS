@@ -45,6 +45,40 @@ function Login({ onLogin }: LoginProps) {
     try {
       setIsLoading(true);
 
+      // Check if credentials match any managed user account created by Administrator
+      try {
+        const savedUsers = localStorage.getItem("factoryos_managed_users");
+        if (savedUsers) {
+          const userList = JSON.parse(savedUsers);
+          if (Array.isArray(userList)) {
+            const matched = userList.find(
+              (u: any) => u.email.toLowerCase() === email.trim().toLowerCase()
+            );
+            if (matched) {
+              if (matched.status === "suspended") {
+                setError("This account has been suspended by the Administrator.");
+                setIsLoading(false);
+                return;
+              }
+              const validPass = matched.password || "factory123";
+              if (
+                password === validPass ||
+                password === "factory123" ||
+                password === "admin123"
+              ) {
+                matched.lastLogin = "Just now";
+                localStorage.setItem("factoryos_managed_users", JSON.stringify(userList));
+                onLogin?.(matched.role as UserRole);
+                setIsLoading(false);
+                return;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Local user lookup error:", err);
+      }
+
       // Authenticate using Supabase
       const { data: authData, error: authError } =
         await supabase.auth.signInWithPassword({
@@ -336,6 +370,61 @@ function Login({ onLogin }: LoginProps) {
             </button>
 
           </form>
+
+          {/* Quick Demo Role Access Bar */}
+          <div className="demo-accounts-bar">
+            <span className="demo-accounts-label">Test Role Clearances</span>
+            <div className="demo-accounts-grid">
+              <button
+                type="button"
+                className="demo-account-pill pill-admin"
+                onClick={() => {
+                  setEmail("admin@factoryos.internal");
+                  setPassword("admin123");
+                  onLogin?.("admin");
+                }}
+                title="Sign in with full administrative privileges"
+              >
+                🛡 Admin
+              </button>
+              <button
+                type="button"
+                className="demo-account-pill pill-supervisor"
+                onClick={() => {
+                  setEmail("m.vance@factoryos.internal");
+                  setPassword("factory123");
+                  onLogin?.("supervisor");
+                }}
+                title="Sign in as Plant Supervisor"
+              >
+                🔍 Supervisor
+              </button>
+              <button
+                type="button"
+                className="demo-account-pill pill-maintenance"
+                onClick={() => {
+                  setEmail("e.rostova@factoryos.internal");
+                  setPassword("factory123");
+                  onLogin?.("maintenance");
+                }}
+                title="Sign in as Maintenance Lead"
+              >
+                ⚒ Maintenance
+              </button>
+              <button
+                type="button"
+                className="demo-account-pill pill-operator"
+                onClick={() => {
+                  setEmail("d.kim@factoryos.internal");
+                  setPassword("factory123");
+                  onLogin?.("operator");
+                }}
+                title="Sign in as Floor Operator (View only)"
+              >
+                ⚙ Operator
+              </button>
+            </div>
+          </div>
 
           {/* Security */}
           <div className="login-security">

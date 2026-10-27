@@ -57,6 +57,11 @@ function Sidebar({
       label: "AI Assistant",
       visible: permissions.aiAssistant,
     },
+    {
+      icon: "👥",
+      label: "User Management",
+      visible: permissions.userManagement,
+    },
   ];
 
   return (

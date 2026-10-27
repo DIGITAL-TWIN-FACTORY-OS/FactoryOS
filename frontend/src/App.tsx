@@ -9,6 +9,7 @@ import Machines from "./pages/Machines/Machines";
 import Maintenance from "./pages/Maintenance/Maintenance";
 import Analytics from "./pages/Analytics/Analytics";
 import AddMachineModal, { type Machine, type MachineStatus } from "./components/AddMachineModal/AddMachineModal";
+import UserManagement from "./pages/UserManagement/UserManagement";
 import { supabase } from "./lib/supabaseClient";
 import "./components/Login/Login.css";
 
@@ -527,6 +528,7 @@ function App() {
 
   const [currentPage, setCurrentPage] = useState("dashboard");
   const isDashboard = currentPage.toLowerCase() === "dashboard";
+  const isAdmin = userRole === "admin";
 
   const selectedMachine =
     machineList.find((machine) => machine.id === selectedMachineId) ??
@@ -609,8 +611,8 @@ function App() {
 
     setSelectedMachineId(machineId);
 
-    // Only draggable in Layout Mode, when on Factory Layout (not Dashboard), and if the machine is not locked!
-    if (isDashboard || !isLayoutMode) return;
+    // Only draggable by Admin in Layout Mode, when on Factory Layout (not Dashboard), and if the machine is not locked!
+    if (!isAdmin || isDashboard || !isLayoutMode) return;
 
     const target = machineList.find((m) => m.id === machineId);
     if (!target || target.isLocked) return;
@@ -1036,7 +1038,12 @@ function App() {
         setCurrentPage("dashboard");
       }}
     >
-      {currentPage === "AI Assistant" ? (
+      {currentPage === "User Management" ? (
+        <UserManagement
+          currentUserRole={userRole}
+          onNavigate={setCurrentPage}
+        />
+      ) : currentPage === "AI Assistant" ? (
         <AIAssistant
           machines={machineList}
           alerts={alerts}
@@ -1171,8 +1178,8 @@ function App() {
                   </div>
                   <span className="machine-light" />
 
-                  {/* Corner Resize Grip (Active only in Layout Mode for selected machine, hidden in Dashboard) */}
-                  {!isDashboard && isLayoutMode && isSelected && !machine.isLocked && (
+                  {/* Corner Resize Grip (Admin only in Layout Mode on Factory Layout) */}
+                  {!isDashboard && isAdmin && isLayoutMode && isSelected && !machine.isLocked && (
                     <div
                       className="machine-resize-handle"
                       onPointerDown={(e) => handleResizePointerDown(e, machine.id)}
@@ -1196,8 +1203,8 @@ function App() {
               );
             })}
 
-            {/* Floating Machine Alignment & Resizing Dock - Hidden in Dashboard */}
-            {!isDashboard && selectedMachine && (
+            {/* Floating Machine Alignment & Resizing Dock - Admin Only on Factory Layout */}
+            {!isDashboard && isAdmin && selectedMachine && (
               <div className="layout-align-dock" onClick={(e) => e.stopPropagation()}>
                 <div className="align-dock-info">
                   <span className={`align-dock-status ${selectedMachine.status}`}>●</span>
@@ -1423,8 +1430,24 @@ function App() {
               </div>
 
               <div className="factory-toolbar-actions">
-                {/* Layout Mode Lock/Unlock Master Toggle - Hidden in Dashboard */}
-                {!isDashboard && (
+                {/* Dashboard View Indicator */}
+                {isDashboard && (
+                  <div className="dashboard-live-indicator">
+                    <span className="live-pulse-dot"></span>
+                    <span>Live Telemetry Stream</span>
+                  </div>
+                )}
+
+                {/* Non-Admin View Only Notice on Factory Layout */}
+                {!isDashboard && !isAdmin && (
+                  <div className="view-only-role-badge">
+                    <span>🔒</span>
+                    <span>View Only ({userRole.toUpperCase()}) • Admin clearance required to modify</span>
+                  </div>
+                )}
+
+                {/* Layout Mode Lock/Unlock Master Toggle - Admin Only */}
+                {!isDashboard && isAdmin && (
                   <button
                     type="button"
                     className={`btn-layout-mode ${isLayoutMode ? "active" : "locked"}`}
@@ -1440,8 +1463,8 @@ function App() {
                   </button>
                 )}
 
-                {/* Plus Sign Add Machine Button - Hidden in Dashboard */}
-                {!isDashboard && (
+                {/* Plus Sign Add Machine Button - Admin Only */}
+                {!isDashboard && isAdmin && (
                   <button
                     type="button"
                     className="btn-add-machine-toolbar"
@@ -1453,16 +1476,8 @@ function App() {
                   </button>
                 )}
 
-                {/* Dashboard View Indicator */}
-                {isDashboard && (
-                  <div className="dashboard-live-indicator">
-                    <span className="live-pulse-dot"></span>
-                    <span>Live Telemetry Stream</span>
-                  </div>
-                )}
-
-                {/* Blueprint Controls - Hidden in Dashboard */}
-                {!isDashboard && (
+                {/* Blueprint Controls - Admin Only on Factory Layout */}
+                {!isDashboard && isAdmin && (
                   <>
                     {blueprint && (
                       <>
@@ -1552,8 +1567,8 @@ function App() {
                   </>
                 )}
 
-                {/* Reset Layout Button - Hidden in Dashboard */}
-                {!isDashboard && (
+                {/* Reset Layout Button - Admin Only */}
+                {!isDashboard && isAdmin && (
                   <button
                     type="button"
                     className="blueprint-scale-button"
