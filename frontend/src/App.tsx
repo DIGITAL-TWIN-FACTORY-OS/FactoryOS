@@ -526,6 +526,7 @@ function App() {
   };
 
   const [currentPage, setCurrentPage] = useState("dashboard");
+  const isDashboard = currentPage.toLowerCase() === "dashboard";
 
   const selectedMachine =
     machineList.find((machine) => machine.id === selectedMachineId) ??
@@ -608,8 +609,8 @@ function App() {
 
     setSelectedMachineId(machineId);
 
-    // Only draggable in Layout Mode and if the machine is not locked!
-    if (!isLayoutMode) return;
+    // Only draggable in Layout Mode, when on Factory Layout (not Dashboard), and if the machine is not locked!
+    if (isDashboard || !isLayoutMode) return;
 
     const target = machineList.find((m) => m.id === machineId);
     if (!target || target.isLocked) return;
@@ -1103,8 +1104,8 @@ function App() {
             {/* Floor Transit Paths */}
             <div className="floor-path path-one"></div>
 
-            {/* Drag & Align Hint */}
-            {showDragHint && (
+            {/* Drag & Align Hint - Hidden in Dashboard */}
+            {!isDashboard && showDragHint && (
               <div className="layout-drag-hint">
                 <span>{isLayoutMode ? "📐 Layout Mode:" : "🔒 Locked:"}</span>
                 {isLayoutMode
@@ -1133,7 +1134,7 @@ function App() {
                     width: `${width}px`,
                     minHeight: `${height}px`,
                     height: `${height}px`,
-                    cursor: !isLayoutMode
+                    cursor: isDashboard || !isLayoutMode
                       ? "pointer"
                       : machine.isLocked
                       ? "not-allowed"
@@ -1170,8 +1171,8 @@ function App() {
                   </div>
                   <span className="machine-light" />
 
-                  {/* Corner Resize Grip (Active only in Layout Mode for selected machine) */}
-                  {isLayoutMode && isSelected && !machine.isLocked && (
+                  {/* Corner Resize Grip (Active only in Layout Mode for selected machine, hidden in Dashboard) */}
+                  {!isDashboard && isLayoutMode && isSelected && !machine.isLocked && (
                     <div
                       className="machine-resize-handle"
                       onPointerDown={(e) => handleResizePointerDown(e, machine.id)}
@@ -1185,8 +1186,8 @@ function App() {
                   {isSelected && (
                     <div className="machine-coords-tag">
                       {machine.x}, {machine.y}
-                      {isLayoutMode && !machine.isLocked && ` • ${width}×${height}px`}
-                      {machine.isLocked && " • 🔒 Locked"}
+                      {!isDashboard && isLayoutMode && !machine.isLocked && ` • ${width}×${height}px`}
+                      {!isDashboard && machine.isLocked && " • 🔒 Locked"}
                       {isDragging && " • Moving"}
                       {isResizing && " • Resizing"}
                     </div>
@@ -1195,8 +1196,8 @@ function App() {
               );
             })}
 
-            {/* Floating Machine Alignment & Resizing Dock */}
-            {selectedMachine && (
+            {/* Floating Machine Alignment & Resizing Dock - Hidden in Dashboard */}
+            {!isDashboard && selectedMachine && (
               <div className="layout-align-dock" onClick={(e) => e.stopPropagation()}>
                 <div className="align-dock-info">
                   <span className={`align-dock-status ${selectedMachine.status}`}>●</span>
@@ -1402,44 +1403,55 @@ function App() {
             {/* Floor Toolbar */}
             <div className="factory-toolbar">
               <div className="factory-toolbar-title">
-                <span className="factory-toolbar-icon">▥</span>
+                <span className="factory-toolbar-icon">{isDashboard ? "▦" : "▥"}</span>
                 <div>
-                  <strong>Factory Layout & Digital Twin</strong>
+                  <strong>
+                    {isDashboard
+                      ? "Factory Operational Floor"
+                      : "Factory Layout & Floor Planner"}
+                  </strong>
                   <span>
-                    {machineList.length} machines deployed •{" "}
-                    {isLayoutMode
-                      ? "Layout Mode Active (Movable & Resizable)"
-                      : "Floor Locked (Click to Edit)"}
+                    {isDashboard
+                      ? `${machineList.length} machines monitored • ${healthyMachines} running, ${warningMachines} warning, ${criticalMachines} critical`
+                      : `${machineList.length} machines deployed • ${
+                          isLayoutMode
+                            ? "Layout Mode Active (Movable & Resizable)"
+                            : "Floor Locked (Click to Edit)"
+                        }`}
                   </span>
                 </div>
               </div>
 
               <div className="factory-toolbar-actions">
-                {/* Layout Mode Lock/Unlock Master Toggle */}
-                <button
-                  type="button"
-                  className={`btn-layout-mode ${isLayoutMode ? "active" : "locked"}`}
-                  onClick={() => setIsLayoutMode((v) => !v)}
-                  title={
-                    isLayoutMode
-                      ? "Layout Mode is ACTIVE (Movable & Resizable). Click to Lock."
-                      : "Layout is LOCKED. Click to enter Layout Mode and edit positions & sizes."
-                  }
-                >
-                  <span className="mode-icon">{isLayoutMode ? "🔓" : "🔒"}</span>
-                  <span>{isLayoutMode ? "Layout Mode: ON" : "Locked (View Mode)"}</span>
-                </button>
+                {/* Layout Mode Lock/Unlock Master Toggle - Hidden in Dashboard */}
+                {!isDashboard && (
+                  <button
+                    type="button"
+                    className={`btn-layout-mode ${isLayoutMode ? "active" : "locked"}`}
+                    onClick={() => setIsLayoutMode((v) => !v)}
+                    title={
+                      isLayoutMode
+                        ? "Layout Mode is ACTIVE (Movable & Resizable). Click to Lock."
+                        : "Layout is LOCKED. Click to enter Layout Mode and edit positions & sizes."
+                    }
+                  >
+                    <span className="mode-icon">{isLayoutMode ? "🔓" : "🔒"}</span>
+                    <span>{isLayoutMode ? "Layout Mode: ON" : "Locked (View Mode)"}</span>
+                  </button>
+                )}
 
-                {/* Plus Sign Add Machine Button */}
-                <button
-                  type="button"
-                  className="btn-add-machine-toolbar"
-                  onClick={() => setShowAddMachineModal(true)}
-                  title="Search & Add Machines / Equipment to Layout"
-                >
-                  <span className="btn-add-plus">＋</span>
-                  <span>Add Machine</span>
-                </button>
+                {/* Plus Sign Add Machine Button - Hidden in Dashboard */}
+                {!isDashboard && (
+                  <button
+                    type="button"
+                    className="btn-add-machine-toolbar"
+                    onClick={() => setShowAddMachineModal(true)}
+                    title="Search & Add Machines / Equipment to Layout"
+                  >
+                    <span className="btn-add-plus">＋</span>
+                    <span>Add Machine</span>
+                  </button>
+                )}
 
                 {blueprint && (
                   <>
@@ -1527,15 +1539,18 @@ function App() {
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  className="blueprint-scale-button"
-                  style={{ width: "auto", padding: "0 8px", fontSize: "11px" }}
-                  onClick={handleResetDefaultLayout}
-                  title="Reset machines to factory default layout"
-                >
-                  ↺ Reset
-                </button>
+                {/* Reset Layout Button - Hidden in Dashboard */}
+                {!isDashboard && (
+                  <button
+                    type="button"
+                    className="blueprint-scale-button"
+                    style={{ width: "auto", padding: "0 8px", fontSize: "11px" }}
+                    onClick={handleResetDefaultLayout}
+                    title="Reset machines to factory default layout"
+                  >
+                    ↺ Reset
+                  </button>
+                )}
               </div>
             </div>
 
