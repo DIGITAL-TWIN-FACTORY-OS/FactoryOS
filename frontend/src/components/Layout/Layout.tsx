@@ -31,6 +31,7 @@ function Layout({
         <Header
           userRole={userRole}
           onSignOut={onSignOut}
+          onNavigate={onNavigate}
         />
 
         <main className="page-content">

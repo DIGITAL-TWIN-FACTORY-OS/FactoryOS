@@ -1,36 +1,70 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { UserRole } from "../Login/Login";
 import "./Header.css";
 
 interface HeaderProps {
   userRole: UserRole;
   onSignOut: () => void;
+  onNavigate?: (page: string) => void;
+}
+
+interface DropdownAlert {
+  id: string;
+  machine: string;
+  message: string;
+  time: string;
+  type: "critical" | "warning" | "info";
+}
+
+interface DropdownMessage {
+  id: string;
+  sender: string;
+  text: string;
+  time: string;
+  tag: string;
 }
 
 function Header({
   userRole,
   onSignOut,
+  onNavigate,
 }: HeaderProps) {
-  const [isDropdownOpen, setIsDropdownOpen] =
-    useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  const [isMessagesOpen, setIsMessagesOpen] = useState(false);
 
-  const currentTime = new Date().toLocaleTimeString(
-    [],
-    {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }
-  );
+  const headerRightRef = useRef<HTMLDivElement>(null);
 
-  const currentDate = new Date().toLocaleDateString(
-    [],
-    {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }
-  );
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        headerRightRef.current &&
+        !headerRightRef.current.contains(event.target as Node)
+      ) {
+        setIsAlertsOpen(false);
+        setIsMessagesOpen(false);
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const currentTime = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  const currentDate = new Date().toLocaleDateString([], {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 
   const roleDetails: Record<
     UserRole,
@@ -47,12 +81,10 @@ function Header({
       name: "Supervisor",
       role: "Supervisor",
     },
-
     maintenance: {
       name: "Maintenance",
       role: "Engineer",
     },
-
     operator: {
       name: "Operator",
       role: "Operator",
@@ -61,100 +93,269 @@ function Header({
 
   const currentUser = roleDetails[userRole];
 
+  // Active Alerts List for Dropdown
+  const dropdownAlerts: DropdownAlert[] = [
+    {
+      id: "ALT-1",
+      machine: "M-09 Heat Treatment",
+      message: "Temperature exceeded safe limit (91.8°C)",
+      time: "11:40 AM",
+      type: "critical",
+    },
+    {
+      id: "ALT-2",
+      machine: "M-11 Packaging",
+      message: "Severe vibration level detected (8.2 mm/s)",
+      time: "11:38 AM",
+      type: "critical",
+    },
+    {
+      id: "ALT-3",
+      machine: "M-07 Welding Robot",
+      message: "High current detected on torch manifold (15.8A)",
+      time: "11:32 AM",
+      type: "warning",
+    },
+    {
+      id: "ALT-4",
+      machine: "M-04 Grinding",
+      message: "Spindle preventive maintenance due in 8 hrs",
+      time: "11:20 AM",
+      type: "warning",
+    },
+    {
+      id: "ALT-5",
+      machine: "M-15 Conveyor",
+      message: "Speed fluctuation and belt slip warning",
+      time: "10:40 AM",
+      type: "warning",
+    },
+    {
+      id: "ALT-6",
+      machine: "M-21 Air Compressor",
+      message: "Scheduled intake filter service window",
+      time: "10:55 AM",
+      type: "info",
+    },
+  ];
+
+  // System Notifications / Messages List
+  const dropdownMessages: DropdownMessage[] = [
+    {
+      id: "MSG-1",
+      sender: "Marcus Vance (Thermal Lead)",
+      text: "Assigned to emergency work order #WO-1001 for M-09 Heat Treatment.",
+      time: "12m ago",
+      tag: "Work Order",
+    },
+    {
+      id: "MSG-2",
+      sender: "Parts Storeroom",
+      text: "SKF-6208-2RS bearing set reserved for M-11 Packaging service.",
+      time: "28m ago",
+      tag: "Inventory",
+    },
+    {
+      id: "MSG-3",
+      sender: "AI Diagnostic Copilot",
+      text: "Thermal and vibration trend correlation identified on Welding Robot.",
+      time: "1h ago",
+      tag: "AI Notice",
+    },
+  ];
+
+  const handleToggleAlerts = () => {
+    setIsAlertsOpen((prev) => !prev);
+    setIsMessagesOpen(false);
+    setIsDropdownOpen(false);
+  };
+
+  const handleToggleMessages = () => {
+    setIsMessagesOpen((prev) => !prev);
+    setIsAlertsOpen(false);
+    setIsDropdownOpen(false);
+  };
+
+  const handleToggleProfile = () => {
+    setIsDropdownOpen((prev) => !prev);
+    setIsAlertsOpen(false);
+    setIsMessagesOpen(false);
+  };
+
+  const handleAlertItemClick = () => {
+    setIsAlertsOpen(false);
+    if (onNavigate) {
+      onNavigate("Alerts");
+    }
+  };
+
+  const handleMessageItemClick = () => {
+    setIsMessagesOpen(false);
+    if (onNavigate) {
+      onNavigate("Maintenance");
+    }
+  };
+
   return (
     <header className="top-header">
-
       <div className="header-title">
-        <span className="header-logo">
-          F
-        </span>
-
-        <h2>
-          FactoryOS
-        </h2>
+        <span className="header-logo">F</span>
+        <h2>FactoryOS</h2>
       </div>
 
-      <div className="header-right">
-
+      <div className="header-right" ref={headerRightRef}>
         <div className="header-time">
           <span>{currentTime}</span>
-
           <i></i>
-
           <span>{currentDate}</span>
         </div>
 
-        <button
-          className="header-icon"
-          type="button"
-        >
-          ♧
-          <span>6</span>
-        </button>
+        {/* ===================== ALERTS ICON & DROPDOWN ===================== */}
+        <div className="header-icon-container">
+          <button
+            className={`header-icon ${isAlertsOpen ? "active" : ""}`}
+            type="button"
+            title="View Plant Alerts"
+            onClick={handleToggleAlerts}
+          >
+            ♧
+            <span>{dropdownAlerts.length}</span>
+          </button>
 
-        <button
-          className="header-icon"
-          type="button"
-        >
-          ✉
-          <span>3</span>
-        </button>
+          {isAlertsOpen && (
+            <div className="header-dropdown-menu alerts-dropdown">
+              <div className="header-dropdown-header">
+                <h4>
+                  <span>♧</span>
+                  <span>Plant Condition Alerts</span>
+                </h4>
+                <span className="header-dropdown-count-badge">
+                  {dropdownAlerts.filter((a) => a.type === "critical").length} Critical
+                </span>
+              </div>
+
+              <div className="header-dropdown-list">
+                {dropdownAlerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`header-dropdown-item ${alert.type}`}
+                    onClick={handleAlertItemClick}
+                  >
+                    <div className="header-dropdown-item-top">
+                      <span className="header-dropdown-item-title">
+                        {alert.machine}
+                        <span className={`header-dropdown-severity-tag ${alert.type}`}>
+                          {alert.type}
+                        </span>
+                      </span>
+                      <span className="header-dropdown-item-time">{alert.time}</span>
+                    </div>
+                    <div className="header-dropdown-item-msg">{alert.message}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="header-dropdown-footer">
+                <button
+                  type="button"
+                  className="header-dropdown-viewall"
+                  onClick={handleAlertItemClick}
+                >
+                  Go to Alerts Center ➔
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ===================== MESSAGES ICON & DROPDOWN ===================== */}
+        <div className="header-icon-container">
+          <button
+            className={`header-icon ${isMessagesOpen ? "active" : ""}`}
+            type="button"
+            title="View Notifications & Messages"
+            onClick={handleToggleMessages}
+          >
+            ✉
+            <span>{dropdownMessages.length}</span>
+          </button>
+
+          {isMessagesOpen && (
+            <div className="header-dropdown-menu messages-dropdown">
+              <div className="header-dropdown-header">
+                <h4>
+                  <span>✉</span>
+                  <span>Maintenance Logs & Dispatch</span>
+                </h4>
+                <span
+                  className="header-dropdown-count-badge"
+                  style={{ background: "#00b4d8" }}
+                >
+                  {dropdownMessages.length} New
+                </span>
+              </div>
+
+              <div className="header-dropdown-list">
+                {dropdownMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className="header-dropdown-item info"
+                    onClick={handleMessageItemClick}
+                  >
+                    <div className="header-dropdown-item-top">
+                      <span className="header-dropdown-item-title">
+                        {msg.sender}
+                      </span>
+                      <span className="header-dropdown-item-time">{msg.time}</span>
+                    </div>
+                    <div className="header-dropdown-item-msg">{msg.text}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="header-dropdown-footer">
+                <button
+                  type="button"
+                  className="header-dropdown-viewall"
+                  onClick={handleMessageItemClick}
+                >
+                  Open Work Orders & Maintenance ➔
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="header-divider"></div>
 
-        {/* USER PROFILE */}
-
+        {/* ===================== USER PROFILE DROPDOWN ===================== */}
         <div className="user-profile-container">
-
           <button
             className="user-profile"
             type="button"
-            onClick={() =>
-              setIsDropdownOpen(
-                !isDropdownOpen
-              )
-            }
+            onClick={handleToggleProfile}
           >
-            <div className="user-avatar">
-              ◯
-            </div>
+            <div className="user-avatar">◯</div>
 
             <div>
-              <strong>
-                {currentUser.name}
-              </strong>
-
-              <small>
-                {currentUser.role}
-              </small>
+              <strong>{currentUser.name}</strong>
+              <small>{currentUser.role}</small>
             </div>
 
             <span
               className={`dropdown-arrow ${
-                isDropdownOpen
-                  ? "open"
-                  : ""
+                isDropdownOpen ? "open" : ""
               }`}
             >
               ⌄
             </span>
           </button>
 
-          {/* DROPDOWN */}
-
           {isDropdownOpen && (
             <div className="user-dropdown">
-
               <div className="dropdown-user-info">
-
-                <strong>
-                  {currentUser.name}
-                </strong>
-
-                <span>
-                  {currentUser.role}
-                </span>
-
+                <strong>{currentUser.name}</strong>
+                <span>{currentUser.role}</span>
               </div>
 
               <div className="dropdown-divider"></div>
@@ -167,14 +368,10 @@ function Header({
                 <span>↪</span>
                 <span>Sign Out</span>
               </button>
-
             </div>
           )}
-
         </div>
-
       </div>
-
     </header>
   );
 }
