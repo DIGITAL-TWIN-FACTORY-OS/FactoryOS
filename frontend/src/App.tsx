@@ -93,6 +93,15 @@ function getMachineIcon(name: string) {
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("operator");
+  const [userName, setUserName] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem("factoryos_user_name");
+      if (saved) return saved;
+    } catch (e) {
+      // Ignore
+    }
+    return "System Administrator";
+  });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   // Live Machine list fetched from Supabase database
@@ -155,12 +164,15 @@ function App() {
       if (session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, full_name")
           .eq("id", session.user.id)
           .single();
 
         if (profile?.role) {
           setUserRole(profile.role as UserRole);
+          const resolvedName = (profile as any).full_name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Administrator";
+          setUserName(resolvedName);
+          localStorage.setItem("factoryos_user_name", resolvedName);
           setIsLoggedIn(true);
         }
       }
@@ -178,12 +190,15 @@ function App() {
       if (event === "SIGNED_IN" && session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, full_name")
           .eq("id", session.user.id)
           .single();
 
         if (profile?.role) {
           setUserRole(profile.role as UserRole);
+          const resolvedName = (profile as any).full_name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Administrator";
+          setUserName(resolvedName);
+          localStorage.setItem("factoryos_user_name", resolvedName);
           setIsLoggedIn(true);
         }
       }
@@ -820,6 +835,7 @@ function App() {
   return (
     <Layout
       userRole={userRole}
+      userName={userName}
       currentPage={currentPage}
       onNavigate={setCurrentPage}
       onSignOut={async () => {

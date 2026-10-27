@@ -581,3 +581,62 @@ export async function seedNasaMachinesToDb(): Promise<Machine[]> {
   }
   return seeded;
 }
+
+
+export const DEFAULT_PLANT_PROFILES: ManagedUser[] = [
+  {
+    id: "USR-001",
+    name: "System Administrator",
+    email: "admin@factoryos.internal",
+    role: "admin",
+    department: "Plant Management & IT",
+    shift: "General Day (08:00 - 17:00)",
+    status: "active",
+    createdAt: "01 Jan 2026",
+    createdBy: "System (Supabase)",
+    lastLogin: "Active now",
+  },
+  {
+    id: "USR-002",
+    name: "Marcus Vance",
+    email: "m.vance@factoryos.internal",
+    role: "supervisor",
+    department: "Production Area 1 (Machining)",
+    shift: "Morning (06:00 - 14:00)",
+    status: "active",
+    createdAt: "15 Jan 2026",
+    createdBy: "System Administrator",
+    lastLogin: "2 hours ago",
+  },
+  {
+    id: "USR-003",
+    name: "Elena Rostova",
+    email: "e.rostova@factoryos.internal",
+    role: "maintenance",
+    department: "Robotics & Automation Cells",
+    shift: "General Day (08:00 - 17:00)",
+    status: "active",
+    createdAt: "20 Jan 2026",
+    createdBy: "System Administrator",
+    lastLogin: "1 day ago",
+  },
+  {
+    id: "USR-004",
+    name: "David Kim",
+    email: "d.kim@factoryos.internal",
+    role: "operator",
+    department: "CNC Milling & Turning",
+    shift: "Morning (06:00 - 14:00)",
+    status: "active",
+    createdAt: "02 Feb 2026",
+    createdBy: "System Administrator",
+    lastLogin: "3 hours ago",
+  },
+];
+
+export async function seedDefaultProfilesToDb(): Promise<ManagedUser[]> {
+  for (const u of DEFAULT_PLANT_PROFILES) {
+    await addProfileToDb(u);
+  }
+  return DEFAULT_PLANT_PROFILES;
+}

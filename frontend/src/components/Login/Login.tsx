@@ -9,8 +9,14 @@ export type UserRole =
   | "maintenance"
   | "operator";
 
+export interface LoginUserPayload {
+  id?: string;
+  name?: string;
+  email?: string;
+}
+
 interface LoginProps {
-  onLogin?: (role: UserRole) => void;
+  onLogin?: (role: UserRole, user?: LoginUserPayload) => void;
 }
 
 function Login({ onLogin }: LoginProps) {
@@ -69,7 +75,7 @@ function Login({ onLogin }: LoginProps) {
               ) {
                 matched.lastLogin = "Just now";
                 localStorage.setItem("factoryos_managed_users", JSON.stringify(userList));
-                onLogin?.(matched.role as UserRole);
+                onLogin?.(matched.role as UserRole, { id: matched.id, name: matched.name, email: matched.email });
                 setIsLoading(false);
                 return;
               }
@@ -99,11 +105,11 @@ function Login({ onLogin }: LoginProps) {
         return;
       }
 
-      // Get FactoryOS role from profiles table
+      // Get FactoryOS role and name from profiles table
       const { data: profile, error: profileError } =
         await supabase
           .from("profiles")
-          .select("role")
+          .select("role, full_name, email")
           .eq("id", authData.user.id)
           .single();
 
@@ -382,7 +388,7 @@ function Login({ onLogin }: LoginProps) {
                 onClick={() => {
                   setEmail("admin@factoryos.internal");
                   setPassword("admin123");
-                  onLogin?.("admin");
+                  onLogin?.("admin", { name: "System Administrator", email: "admin@factoryos.internal" });
                 }}
                 title="Sign in with full administrative privileges"
               >
@@ -395,7 +401,7 @@ function Login({ onLogin }: LoginProps) {
                 onClick={() => {
                   setEmail("m.vance@factoryos.internal");
                   setPassword("factory123");
-                  onLogin?.("supervisor");
+                  onLogin?.("supervisor", { name: "Marcus Vance", email: "m.vance@factoryos.internal" });
                 }}
                 title="Sign in as Plant Supervisor"
               >
@@ -408,7 +414,7 @@ function Login({ onLogin }: LoginProps) {
                 onClick={() => {
                   setEmail("e.rostova@factoryos.internal");
                   setPassword("factory123");
-                  onLogin?.("maintenance");
+                  onLogin?.("maintenance", { name: "Elena Rostova", email: "e.rostova@factoryos.internal" });
                 }}
                 title="Sign in as Maintenance Lead"
               >
@@ -421,7 +427,7 @@ function Login({ onLogin }: LoginProps) {
                 onClick={() => {
                   setEmail("d.kim@factoryos.internal");
                   setPassword("factory123");
-                  onLogin?.("operator");
+                  onLogin?.("operator", { name: "David Kim", email: "d.kim@factoryos.internal" });
                 }}
                 title="Sign in as Floor Operator (View only)"
               >

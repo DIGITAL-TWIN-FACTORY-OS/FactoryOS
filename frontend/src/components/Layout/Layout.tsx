@@ -7,6 +7,7 @@ import "./Layout.css";
 interface LayoutProps {
   children: ReactNode;
   userRole: UserRole;
+  userName?: string;
   currentPage: string;
   onNavigate: (page: string) => void;
   onSignOut: () => void;
@@ -15,6 +16,7 @@ interface LayoutProps {
 function Layout({
   children,
   userRole,
+  userName,
   currentPage,
   onNavigate,
   onSignOut,
@@ -30,6 +32,7 @@ function Layout({
       <div className="main-area">
         <Header
           userRole={userRole}
+          userName={userName}
           onSignOut={onSignOut}
           onNavigate={onNavigate}
         />

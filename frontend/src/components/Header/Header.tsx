@@ -5,6 +5,7 @@ import UserRoleIcon from "../UserRoleIcon/UserRoleIcon";
 
 interface HeaderProps {
   userRole: UserRole;
+  userName?: string;
   onSignOut: () => void;
   onNavigate?: (page: string) => void;
 }
@@ -27,6 +28,7 @@ interface DropdownMessage {
 
 function Header({
   userRole,
+  userName,
   onSignOut,
   onNavigate,
 }: HeaderProps) {
@@ -374,9 +376,11 @@ function Header({
               <UserRoleIcon role={userRole} size={20} />
             </div>
 
-            <div>
-              <strong>{currentUser.name}</strong>
-              <small>{currentUser.role}</small>
+            <div className="user-profile-info">
+              <strong className="user-profile-name">{userName || currentUser.name}</strong>
+              <small className={`user-profile-role role-text-${userRole}`}>
+                {currentUser.role.toUpperCase()}
+              </small>
             </div>
 
             <span
@@ -395,8 +399,8 @@ function Header({
                   <div className={`dropdown-user-avatar role-avatar-${userRole}`}>
                     <UserRoleIcon role={userRole} size={24} />
                   </div>
-                  <div>
-                    <strong>{currentUser.name}</strong>
+                  <div className="dropdown-user-text">
+                    <strong className="dropdown-user-name">{userName || currentUser.name}</strong>
                     <span className={`role-badge-tag role-tag-${userRole}`}>
                       {currentUser.role.toUpperCase()}
                     </span>

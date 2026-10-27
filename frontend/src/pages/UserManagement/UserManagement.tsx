@@ -7,6 +7,7 @@ import {
   addProfileToDb,
   updateProfileRoleInDb,
   deleteProfileFromDb,
+  seedDefaultProfilesToDb,
   SUPABASE_PROJECT_ID,
 } from "../../services/supabaseService";
 
@@ -129,6 +130,19 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   }, [userList, searchTerm, roleFilter, statusFilter]);
 
   // Handle Add User
+    const handleSeedInitialUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const seeded = await seedDefaultProfilesToDb();
+      setUserList(seeded);
+      showToast("✓ Seeded plant personnel to Supabase database (bsiazqbjrwaxgpzxhhqh)");
+    } catch (err) {
+      console.error("Error seeding users:", err);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserName.trim() || !newUserEmail.trim()) {
@@ -385,7 +399,30 @@ export const UserManagement: React.FC<UserManagementProps> = ({
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="no-users-row">
-                    No users matching the specified search or filter criteria.
+                    <div style={{ padding: "24px 12px", textAlign: "center" }}>
+                      <div style={{ marginBottom: "8px", fontWeight: 700, color: "#ffffff" }}>
+                        No personnel accounts found in Supabase database ({SUPABASE_PROJECT_ID})
+                      </div>
+                      <p style={{ margin: "0 0 16px", color: "#8aa5c0", fontSize: "12px" }}>
+                        Click "Add New User" to register a staff member or import default plant operators & engineers.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleSeedInitialUsers}
+                        style={{
+                          background: "rgba(0, 180, 216, 0.15)",
+                          border: "1px solid #00b4d8",
+                          color: "#00e5ff",
+                          padding: "8px 16px",
+                          borderRadius: "6px",
+                          fontWeight: 700,
+                          fontSize: "12px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        📥 Seed Plant Staff (Admin, Supervisor, Maintenance, Operator)
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
