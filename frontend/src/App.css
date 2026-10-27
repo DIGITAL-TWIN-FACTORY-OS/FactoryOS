@@ -1892,3 +1892,32 @@
   border-color: rgba(255, 210, 28, 0.5);
   color: #ffd21c;
 }
+
+/* Dashboard Live Indicator */
+.dashboard-live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(14, 26, 38, 0.7);
+  border: 1px solid #1c364f;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #a2b8cf;
+}
+
+.dashboard-live-indicator .live-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #20d873;
+  box-shadow: 0 0 9px rgba(32, 216, 115, 0.8);
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.7; }
+}

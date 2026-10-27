@@ -1453,90 +1453,103 @@ function App() {
                   </button>
                 )}
 
-                {blueprint && (
-                  <>
-                    <button
-                      type="button"
-                      className="blueprint-action-button"
-                      onClick={() => setShowBlueprint((current) => !current)}
-                    >
-                      {showBlueprint ? "Hide Blueprint" : "Show Blueprint"}
-                    </button>
-
-                    <div className="blueprint-scale-controls">
-                      <button
-                        type="button"
-                        className="blueprint-scale-button"
-                        title="Zoom Out"
-                        onClick={() =>
-                          setBlueprintScale((s) =>
-                            Math.max(0.2, +(s - 0.1).toFixed(2))
-                          )
-                        }
-                      >
-                        −
-                      </button>
-                      <span className="blueprint-scale-value">
-                        {Math.round(blueprintScale * 100)}%
-                      </span>
-                      <button
-                        type="button"
-                        className="blueprint-scale-button"
-                        title="Zoom In"
-                        onClick={() =>
-                          setBlueprintScale((s) =>
-                            Math.min(3, +(s + 0.1).toFixed(2))
-                          )
-                        }
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="blueprint-action-button"
-                      style={{
-                        borderColor: showAdjustPanel ? "#00b4d8" : undefined,
-                        color: showAdjustPanel ? "#ffffff" : undefined,
-                        background: showAdjustPanel
-                          ? "rgba(0,180,216,0.15)"
-                          : undefined,
-                      }}
-                      onClick={() => setShowAdjustPanel((v) => !v)}
-                      title="Adjust Blueprint Scale, Position, and Opacity"
-                    >
-                      ⚙ Adjust
-                    </button>
-                  </>
+                {/* Dashboard View Indicator */}
+                {isDashboard && (
+                  <div className="dashboard-live-indicator">
+                    <span className="live-pulse-dot"></span>
+                    <span>Live Telemetry Stream</span>
+                  </div>
                 )}
 
-                <label
-                  htmlFor="blueprint-upload"
-                  className="blueprint-upload-button"
-                >
-                  <span>↑</span>
-                  Upload Blueprint
-                </label>
+                {/* Blueprint Controls - Hidden in Dashboard */}
+                {!isDashboard && (
+                  <>
+                    {blueprint && (
+                      <>
+                        <button
+                          type="button"
+                          className="blueprint-action-button"
+                          onClick={() => setShowBlueprint((current) => !current)}
+                        >
+                          {showBlueprint ? "Hide Blueprint" : "Show Blueprint"}
+                        </button>
 
-                <input
-                  id="blueprint-upload"
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg,image/webp"
-                  onChange={handleBlueprintUpload}
-                  hidden
-                />
+                        <div className="blueprint-scale-controls">
+                          <button
+                            type="button"
+                            className="blueprint-scale-button"
+                            title="Zoom Out"
+                            onClick={() =>
+                              setBlueprintScale((s) =>
+                                Math.max(0.2, +(s - 0.1).toFixed(2))
+                              )
+                            }
+                          >
+                            −
+                          </button>
+                          <span className="blueprint-scale-value">
+                            {Math.round(blueprintScale * 100)}%
+                          </span>
+                          <button
+                            type="button"
+                            className="blueprint-scale-button"
+                            title="Zoom In"
+                            onClick={() =>
+                              setBlueprintScale((s) =>
+                                Math.min(3, +(s + 0.1).toFixed(2))
+                              )
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
 
-                {blueprint && (
-                  <button
-                    type="button"
-                    className="blueprint-delete-button"
-                    onClick={handleRemoveBlueprint}
-                    title="Remove Blueprint"
-                    aria-label="Remove Blueprint"
-                  >
-                    🗑
-                  </button>
+                        <button
+                          type="button"
+                          className="blueprint-action-button"
+                          style={{
+                            borderColor: showAdjustPanel ? "#00b4d8" : undefined,
+                            color: showAdjustPanel ? "#ffffff" : undefined,
+                            background: showAdjustPanel
+                              ? "rgba(0,180,216,0.15)"
+                              : undefined,
+                          }}
+                          onClick={() => setShowAdjustPanel((v) => !v)}
+                          title="Adjust Blueprint Scale, Position, and Opacity"
+                        >
+                          ⚙ Adjust
+                        </button>
+                      </>
+                    )}
+
+                    <label
+                      htmlFor="blueprint-upload"
+                      className="blueprint-upload-button"
+                    >
+                      <span>↑</span>
+                      Upload Blueprint
+                    </label>
+
+                    <input
+                      id="blueprint-upload"
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      onChange={handleBlueprintUpload}
+                      hidden
+                    />
+
+                    {blueprint && (
+                      <button
+                        type="button"
+                        className="blueprint-delete-button"
+                        onClick={handleRemoveBlueprint}
+                        title="Remove Blueprint"
+                        aria-label="Remove Blueprint"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </>
                 )}
 
                 {/* Reset Layout Button - Hidden in Dashboard */}
@@ -1554,45 +1567,47 @@ function App() {
               </div>
             </div>
 
-            {/* Map Controls */}
-            <div className="map-controls">
-              <button
-                type="button"
-                title="Zoom In (+10%)"
-                onClick={() =>
-                  setBlueprintScale((s) =>
-                    Math.min(3, +(s + 0.1).toFixed(2))
-                  )
-                }
-              >
-                +
-              </button>
-              <button
-                type="button"
-                title="Zoom Out (-10%)"
-                onClick={() =>
-                  setBlueprintScale((s) =>
-                    Math.max(0.2, +(s - 0.1).toFixed(2))
-                  )
-                }
-              >
-                −
-              </button>
-              <button
-                type="button"
-                title="Reset Position & Zoom"
-                onClick={() => {
-                  setBlueprintScale(1);
-                  setBlueprintOffsetX(0);
-                  setBlueprintOffsetY(0);
-                }}
-              >
-                ⛶
-              </button>
-            </div>
+            {/* Map Controls - Hidden in Dashboard */}
+            {!isDashboard && (
+              <div className="map-controls">
+                <button
+                  type="button"
+                  title="Zoom In (+10%)"
+                  onClick={() =>
+                    setBlueprintScale((s) =>
+                      Math.min(3, +(s + 0.1).toFixed(2))
+                    )
+                  }
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  title="Zoom Out (-10%)"
+                  onClick={() =>
+                    setBlueprintScale((s) =>
+                      Math.max(0.2, +(s - 0.1).toFixed(2))
+                    )
+                  }
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  title="Reset Position & Zoom"
+                  onClick={() => {
+                    setBlueprintScale(1);
+                    setBlueprintOffsetX(0);
+                    setBlueprintOffsetY(0);
+                  }}
+                >
+                  ⛶
+                </button>
+              </div>
+            )}
 
-            {/* Blueprint Adjustment Drawer */}
-            {blueprint && showBlueprint && showAdjustPanel && (
+            {/* Blueprint Adjustment Drawer - Hidden in Dashboard */}
+            {!isDashboard && blueprint && showBlueprint && showAdjustPanel && (
               <div className="blueprint-adjust-drawer">
                 <div className="blueprint-adjust-header">
                   <h4>⚙ Blueprint Alignment & Scale</h4>
