@@ -234,7 +234,7 @@ function Header({
             <span className="header-fos-factory">FACTORY</span>
             <span className="header-fos-badge">OS</span>
           </div>
-          <span className="header-fos-telemetry">PLANT 01 • SCADA CORE</span>
+          <span className="header-fos-telemetry">PLANT 01 • DIGITAL TWIN</span>
         </div>
       </div>
 
