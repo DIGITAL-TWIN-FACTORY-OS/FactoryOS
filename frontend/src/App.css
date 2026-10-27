@@ -1935,3 +1935,102 @@
   font-weight: 600;
   color: #ffd21c;
 }
+
+/* =========================================
+   SUPABASE EMPTY FLOOR STATE
+========================================= */
+.supabase-empty-floor {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(10, 22, 34, 0.94);
+  border: 1px solid #1e3a54;
+  border-radius: 12px;
+  padding: 32px 36px;
+  max-width: 520px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 180, 216, 0.15);
+  z-index: 20;
+  backdrop-filter: blur(8px);
+}
+
+.empty-floor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Rajdhani', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #20d873;
+  background: rgba(32, 216, 115, 0.1);
+  border: 1px solid rgba(32, 216, 115, 0.3);
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 14px;
+}
+
+.supabase-empty-floor h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.supabase-empty-floor p {
+  margin: 0 0 22px;
+  font-size: 12.5px;
+  color: #8fa7c0;
+  line-height: 1.5;
+}
+
+.supabase-empty-floor code {
+  background: rgba(0, 180, 216, 0.15);
+  color: #00e5ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+
+.empty-floor-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-empty-add {
+  background: #00b4d8;
+  color: #03101b;
+  font-weight: 700;
+  font-size: 12px;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-empty-add:hover {
+  background: #00e5ff;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+}
+
+.btn-empty-seed {
+  background: rgba(32, 216, 115, 0.15);
+  color: #20d873;
+  border: 1px solid rgba(32, 216, 115, 0.4);
+  font-weight: 700;
+  font-size: 12px;
+  border-radius: 6px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-empty-seed:hover {
+  background: rgba(32, 216, 115, 0.25);
+  box-shadow: 0 0 15px rgba(32, 216, 115, 0.4);
+}

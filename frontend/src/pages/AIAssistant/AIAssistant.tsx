@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./AIAssistant.css";
+import { predictMachineHealthScore } from "../../services/aiHealthScoreModel";
 
 export interface Machine {
   id: string;
@@ -128,7 +129,19 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         sensorAnalysis.push("- ✅ All sensor parameters (Temp, Vibration, Current, RPM) are within nominal ISO limits.");
       }
 
+      // Multimodal AI Model Evaluation (NASA MC-510V Benchmark)
+      const aiPred = predictMachineHealthScore({
+        name: matchedMachine.name,
+        temperature: matchedMachine.temperature,
+        vibration: matchedMachine.vibration,
+        current: matchedMachine.current,
+        speed: matchedMachine.speed,
+        runtime: matchedMachine.runtime,
+      });
+
       return `${statusIcon} **Comprehensive Diagnostic for ${matchedMachine.id} — ${matchedMachine.name}**\n\n` +
+        `• **AI Predicted Health Score:** **${aiPred.healthScore}%** (${aiPred.wearStage})\n` +
+        `• **Estimated Flank Wear (VB):** **${aiPred.predictedFlankWearMm} mm** (Failure Threshold: 0.45 mm)\n` +
         `• **Operational Status:** ${matchedMachine.status.toUpperCase()}\n` +
         `• **Location:** ${matchedMachine.location}\n` +
         `• **Health Score:** ${matchedMachine.health}% | **Failure Risk:** ${matchedMachine.failureProbability}%\n` +

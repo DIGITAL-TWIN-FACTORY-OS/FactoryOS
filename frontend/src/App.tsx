@@ -9,6 +9,14 @@ import Machines from "./pages/Machines/Machines";
 import Maintenance from "./pages/Maintenance/Maintenance";
 import Analytics from "./pages/Analytics/Analytics";
 import AddMachineModal, { type Machine, type MachineStatus } from "./components/AddMachineModal/AddMachineModal";
+import {
+  fetchMachinesFromDb,
+  addMachineToDb,
+  updateMachineInDb,
+  deleteMachineFromDb,
+  seedNasaMachinesToDb,
+  SUPABASE_PROJECT_ID,
+} from "./services/supabaseService";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import { supabase } from "./lib/supabaseClient";
 import "./components/Login/Login.css";
@@ -22,253 +30,7 @@ interface Alert {
   type: "critical" | "warning" | "info";
 }
 
-const defaultMachines: Machine[] = [
-  {
-    id: "M-01",
-    name: "CNC Milling",
-    status: "running",
-    x: "8%",
-    y: "12%",
-    width: 135,
-    height: 92,
-    temperature: 52.4,
-    vibration: 2.1,
-    current: 8.4,
-    speed: 1450,
-    runtime: 7.2,
-    health: 94,
-    failureProbability: 3,
-    failureTime: "14 days",
-    location: "Production Area 1",
-    installedOn: "12 Jan 2024",
-    lastMaintenance: "02 Oct 2026",
-    recommendation: "Continue normal operation.",
-    diagnosis: "Machine parameters are within normal operating range.",
-  },
-  {
-    id: "M-02",
-    name: "CNC Turning",
-    status: "running",
-    x: "25%",
-    y: "12%",
-    width: 135,
-    height: 92,
-    temperature: 55.1,
-    vibration: 2.4,
-    current: 9.1,
-    speed: 1380,
-    runtime: 6.8,
-    health: 91,
-    failureProbability: 5,
-    failureTime: "12 days",
-    location: "Production Area 1",
-    installedOn: "18 Jan 2024",
-    lastMaintenance: "01 Oct 2026",
-    recommendation: "Continue normal operation.",
-    diagnosis: "No significant abnormality detected.",
-  },
-  {
-    id: "M-03",
-    name: "Drilling",
-    status: "running",
-    x: "42%",
-    y: "12%",
-    width: 135,
-    height: 92,
-    temperature: 50.8,
-    vibration: 2.0,
-    current: 7.8,
-    speed: 1320,
-    runtime: 7.5,
-    health: 96,
-    failureProbability: 2,
-    failureTime: "18 days",
-    location: "Production Area 1",
-    installedOn: "20 Jan 2024",
-    lastMaintenance: "03 Oct 2026",
-    recommendation: "Continue normal operation.",
-    diagnosis: "All monitored parameters are stable.",
-  },
-  {
-    id: "M-04",
-    name: "Grinding",
-    status: "warning",
-    x: "59%",
-    y: "12%",
-    width: 135,
-    height: 92,
-    temperature: 68.3,
-    vibration: 4.7,
-    current: 10.2,
-    speed: 1510,
-    runtime: 7.9,
-    health: 72,
-    failureProbability: 24,
-    failureTime: "2 days",
-    location: "Production Area 1",
-    installedOn: "25 Jan 2024",
-    lastMaintenance: "28 Sep 2026",
-    recommendation: "Schedule preventive maintenance.",
-    diagnosis: "Elevated vibration trend detected during recent operation.",
-  },
-  {
-    id: "M-05",
-    name: "Assembly Robot 1",
-    status: "running",
-    x: "15%",
-    y: "38%",
-    width: 135,
-    height: 92,
-    temperature: 48.2,
-    vibration: 1.8,
-    current: 6.9,
-    speed: 980,
-    runtime: 6.4,
-    health: 93,
-    failureProbability: 4,
-    failureTime: "15 days",
-    location: "Assembly Area",
-    installedOn: "03 Feb 2024",
-    lastMaintenance: "30 Sep 2026",
-    recommendation: "Continue normal operation.",
-    diagnosis: "Robot operating within expected parameters.",
-  },
-  {
-    id: "M-06",
-    name: "Assembly Robot 2",
-    status: "running",
-    x: "32%",
-    y: "38%",
-    width: 135,
-    height: 92,
-    temperature: 49.6,
-    vibration: 2.0,
-    current: 7.1,
-    speed: 1010,
-    runtime: 6.7,
-    health: 90,
-    failureProbability: 6,
-    failureTime: "11 days",
-    location: "Assembly Area",
-    installedOn: "05 Feb 2024",
-    lastMaintenance: "29 Sep 2026",
-    recommendation: "Continue normal operation.",
-    diagnosis: "Operating normally with stable readings.",
-  },
-  {
-    id: "M-07",
-    name: "Welding Robot",
-    status: "warning",
-    x: "49%",
-    y: "38%",
-    width: 135,
-    height: 92,
-    temperature: 71.5,
-    vibration: 4.2,
-    current: 15.8,
-    speed: 860,
-    runtime: 7.1,
-    health: 68,
-    failureProbability: 31,
-    failureTime: "36 hours",
-    location: "Assembly Area",
-    installedOn: "10 Feb 2024",
-    lastMaintenance: "25 Sep 2026",
-    recommendation: "Inspect welding current and cooling system.",
-    diagnosis: "High current detected with a rising temperature trend.",
-  },
-  {
-    id: "M-08",
-    name: "Conveyor A",
-    status: "running",
-    x: "8%",
-    y: "65%",
-    width: 135,
-    height: 92,
-    temperature: 45.3,
-    vibration: 1.5,
-    current: 5.8,
-    speed: 720,
-    runtime: 8.1,
-    health: 95,
-    failureProbability: 2,
-    failureTime: "20 days",
-    location: "Material Handling",
-    installedOn: "15 Feb 2024",
-    lastMaintenance: "01 Oct 2026",
-    recommendation: "Continue normal operation.",
-    diagnosis: "Conveyor performance is stable.",
-  },
-  {
-    id: "M-09",
-    name: "Heat Treatment",
-    status: "critical",
-    x: "25%",
-    y: "65%",
-    width: 135,
-    height: 92,
-    temperature: 91.8,
-    vibration: 7.6,
-    current: 14.2,
-    speed: 1180,
-    runtime: 8.4,
-    health: 24,
-    failureProbability: 88,
-    failureTime: "5.1 hours",
-    location: "Production Area 2",
-    installedOn: "10 Feb 2024",
-    lastMaintenance: "20 Sep 2026",
-    recommendation: "Stop machine and inspect heating assembly.",
-    diagnosis:
-      "Temperature and vibration have exceeded safe operating limits.",
-  },
-  {
-    id: "M-10",
-    name: "Conveyor B",
-    status: "running",
-    x: "42%",
-    y: "65%",
-    width: 135,
-    height: 92,
-    temperature: 46.7,
-    vibration: 1.7,
-    current: 6.1,
-    speed: 740,
-    runtime: 7.9,
-    health: 92,
-    failureProbability: 4,
-    failureTime: "16 days",
-    location: "Material Handling",
-    installedOn: "18 Feb 2024",
-    lastMaintenance: "30 Sep 2026",
-    recommendation: "Continue normal operation.",
-    diagnosis: "Normal conveyor operation detected.",
-  },
-  {
-    id: "M-11",
-    name: "Packaging",
-    status: "critical",
-    x: "59%",
-    y: "65%",
-    width: 135,
-    height: 92,
-    temperature: 86.4,
-    vibration: 8.2,
-    current: 13.6,
-    speed: 1420,
-    runtime: 6.2,
-    health: 18,
-    failureProbability: 92,
-    failureTime: "7.3 hours",
-    location: "Production Area 2",
-    installedOn: "15 Feb 2024",
-    lastMaintenance: "05 May 2025",
-    recommendation: "Replace motor bearing and check belt tension.",
-    diagnosis:
-      "High vibration and temperature trend detected in the last 2 hours indicates possible bearing wear.",
-  },
-];
-
+// Dummy machines removed. Live machine data connects directly to Supabase database (bsiazqbjrwaxgpzxhhqh).
 const alerts: Alert[] = [
   {
     machine: "M-09 Heat Treatment",
@@ -333,28 +95,28 @@ function App() {
   const [userRole, setUserRole] = useState<UserRole>("operator");
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // Dynamic Machines list with localStorage persistence
-  const [machineList, setMachineList] = useState<Machine[]>(() => {
-    try {
-      const saved = localStorage.getItem("factoryos_machines");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error("Failed to load saved machines from localStorage", e);
-    }
-    return defaultMachines;
-  });
+  // Live Machine list fetched from Supabase database
+  const [machineList, setMachineList] = useState<Machine[]>([]);
+  const [isDbLoading, setIsDbLoading] = useState(true);
 
-  // Persist machine changes
+  // Fetch machines from Supabase on mount
   useEffect(() => {
-    try {
-      localStorage.setItem("factoryos_machines", JSON.stringify(machineList));
-    } catch (e) {
-      console.error("Failed to save machines to localStorage", e);
+    async function loadMachines() {
+      setIsDbLoading(true);
+      try {
+        const dbMachines = await fetchMachinesFromDb();
+        setMachineList(dbMachines);
+        if (dbMachines.length > 0) {
+          setSelectedMachineId(dbMachines[0].id);
+        }
+      } catch (err) {
+        console.error("Failed to load machines from Supabase database:", err);
+      } finally {
+        setIsDbLoading(false);
+      }
     }
-  }, [machineList]);
+    loadMachines();
+  }, []);
 
   // Selected Machine & Add Modal state
   const [selectedMachineId, setSelectedMachineId] = useState("M-11");
@@ -533,7 +295,7 @@ function App() {
   const selectedMachine =
     machineList.find((machine) => machine.id === selectedMachineId) ??
     machineList[0] ??
-    defaultMachines[0];
+    { id: 'NO-MACHINE', name: 'No Equipment Registered', status: 'running', x: '50%', y: '50%', temperature: 50, vibration: 2, current: 8, speed: 1400, runtime: 0, health: 100, failureProbability: 0, failureTime: 'N/A', location: 'N/A', installedOn: 'N/A', lastMaintenance: 'N/A', recommendation: 'Register equipment in database', diagnosis: 'Database is empty' };
 
   // Blueprint Controls
   const [blueprint, setBlueprint] = useState<string | null>(null);
@@ -673,6 +435,12 @@ function App() {
 
   const handleMachinePointerUp = (e: React.PointerEvent) => {
     if (draggingMachineId) {
+      const moved = machineList.find((m) => m.id === draggingMachineId);
+      if (moved) {
+        updateMachineInDb(draggingMachineId, { x: moved.x, y: moved.y }).catch((err) =>
+          console.warn("Supabase pos update:", err)
+        );
+      }
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       } catch {
@@ -740,6 +508,13 @@ function App() {
 
   const handleResizePointerUp = (e: React.PointerEvent) => {
     if (resizingMachineId) {
+      const resized = machineList.find((m) => m.id === resizingMachineId);
+      if (resized) {
+        updateMachineInDb(resizingMachineId, {
+          width: resized.width,
+          height: resized.height,
+        }).catch((err) => console.warn("Supabase size update:", err));
+      }
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       } catch {
@@ -870,6 +645,7 @@ function App() {
         `Are you sure you want to remove machine ${id} from the floor layout?`
       )
     ) {
+      deleteMachineFromDb(id).catch((err) => console.warn("Supabase delete:", err));
       setMachineList((prev) => {
         const next = prev.filter((m) => m.id !== id);
         if (selectedMachineId === id && next.length > 0) {
@@ -880,22 +656,37 @@ function App() {
     }
   };
 
-  const handleResetDefaultLayout = () => {
+  const handleResetDefaultLayout = async () => {
     if (
       window.confirm(
         "Reset all machines and equipment to the original factory default positions and sizes?"
       )
     ) {
-      setMachineList(defaultMachines);
+      const fresh = await fetchMachinesFromDb(); setMachineList(fresh);
       localStorage.removeItem("factoryos_machines");
       setSelectedMachineId("M-11");
     }
   };
 
-  const handleAddMachine = (newMachine: Machine) => {
-    setMachineList((prev) => [...prev, newMachine]);
-    setSelectedMachineId(newMachine.id);
-    setIsLayoutMode(true); // Automatically enter Layout Mode so they can align it right away!
+  const handleAddMachine = async (newMachine: Machine) => {
+    // Write directly to Supabase database
+    const saved = await addMachineToDb(newMachine);
+    setMachineList((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)]);
+    setSelectedMachineId(saved.id);
+    setIsLayoutMode(true);
+  };
+
+  const handleSeedNasaMachines = async () => {
+    setIsDbLoading(true);
+    try {
+      const seeded = await seedNasaMachinesToDb();
+      setMachineList(seeded);
+      if (seeded.length > 0) setSelectedMachineId(seeded[0].id);
+    } catch (err) {
+      console.error("Failed to seed NASA machines to Supabase:", err);
+    } finally {
+      setIsDbLoading(false);
+    }
   };
 
   if (isPasswordRecovery) {
@@ -1109,6 +900,36 @@ function App() {
                 {isLayoutMode
                   ? "Drag any machine to move. Drag bottom-right corner ⤡ to resize."
                   : "Floor is locked. Click 'Locked (View Mode)' in toolbar to enable moving & resizing."}
+              </div>
+            )}
+
+            {/* Empty State when no machines exist in Supabase database */}
+            {machineList.length === 0 && !isDbLoading && (
+              <div className="supabase-empty-floor">
+                <div className="empty-floor-badge">
+                  <span className="live-dot green"></span>
+                  <span>SUPABASE CONNECTED: {SUPABASE_PROJECT_ID}</span>
+                </div>
+                <h3>No Equipment Registered in Database</h3>
+                <p>
+                  The Supabase <code>machines</code> table currently contains 0 records. Add equipment from the catalog or seed the digital twin with the NASA Matsuura MC-510V milling equipment.
+                </p>
+                <div className="empty-floor-actions">
+                  <button
+                    type="button"
+                    className="btn-empty-add"
+                    onClick={() => setShowAddMachineModal(true)}
+                  >
+                    ＋ Add New Machine to Database
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-empty-seed"
+                    onClick={handleSeedNasaMachines}
+                  >
+                    📥 Seed NASA MC-510V Digital Twin Equipment
+                  </button>
+                </div>
               </div>
             )}
 

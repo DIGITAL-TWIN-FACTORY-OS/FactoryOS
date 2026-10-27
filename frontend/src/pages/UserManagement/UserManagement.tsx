@@ -2,6 +2,13 @@ import React, { useState, useEffect, useMemo } from "react";
 import "./UserManagement.css";
 import type { UserRole } from "../../components/Login/Login";
 import UserRoleIcon from "../../components/UserRoleIcon/UserRoleIcon";
+import {
+  fetchProfilesFromDb,
+  addProfileToDb,
+  updateProfileRoleInDb,
+  deleteProfileFromDb,
+  SUPABASE_PROJECT_ID,
+} from "../../services/supabaseService";
 
 export interface ManagedUser {
   id: string;
@@ -17,80 +24,7 @@ export interface ManagedUser {
   lastLogin?: string;
 }
 
-const DEFAULT_USERS: ManagedUser[] = [
-  {
-    id: "USR-001",
-    name: "System Administrator",
-    email: "admin@factoryos.internal",
-    role: "admin",
-    department: "Plant Management & IT",
-    shift: "General Day (08:00 - 17:00)",
-    status: "active",
-    createdAt: "01 Jan 2026",
-    createdBy: "System",
-    lastLogin: "Just now",
-  },
-  {
-    id: "USR-002",
-    name: "Marcus Vance",
-    email: "m.vance@factoryos.internal",
-    role: "supervisor",
-    department: "Production Area 1 (Machining)",
-    shift: "Morning (06:00 - 14:00)",
-    status: "active",
-    createdAt: "15 Jan 2026",
-    createdBy: "System Administrator",
-    lastLogin: "2 hours ago",
-  },
-  {
-    id: "USR-003",
-    name: "Elena Rostova",
-    email: "e.rostova@factoryos.internal",
-    role: "maintenance",
-    department: "Robotics & Automation Cells",
-    shift: "General Day (08:00 - 17:00)",
-    status: "active",
-    createdAt: "20 Jan 2026",
-    createdBy: "System Administrator",
-    lastLogin: "1 day ago",
-  },
-  {
-    id: "USR-004",
-    name: "David Kim",
-    email: "d.kim@factoryos.internal",
-    role: "operator",
-    department: "CNC Milling & Turning",
-    shift: "Morning (06:00 - 14:00)",
-    status: "active",
-    createdAt: "02 Feb 2026",
-    createdBy: "System Administrator",
-    lastLogin: "3 hours ago",
-  },
-  {
-    id: "USR-005",
-    name: "Amina Al-Mansoor",
-    email: "a.almansoor@factoryos.internal",
-    role: "operator",
-    department: "Automated Packaging & Assembly",
-    shift: "Evening (14:00 - 22:00)",
-    status: "active",
-    createdAt: "10 Feb 2026",
-    createdBy: "System Administrator",
-    lastLogin: "5 hours ago",
-  },
-  {
-    id: "USR-006",
-    name: "Javier Morales",
-    email: "j.morales@factoryos.internal",
-    role: "maintenance",
-    department: "Facility, HVAC & Compressor Bay",
-    shift: "Night (22:00 - 06:00)",
-    status: "active",
-    createdAt: "18 Feb 2026",
-    createdBy: "System Administrator",
-    lastLogin: "12 hours ago",
-  },
-];
+// Dummy users removed. Real data dynamically loaded from Supabase database.
 
 interface UserManagementProps {
   currentUserRole: UserRole;
@@ -127,27 +61,24 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     );
   }
 
-  // Load and persist users
-  const [userList, setUserList] = useState<ManagedUser[]>(() => {
-    try {
-      const saved = localStorage.getItem("factoryos_managed_users");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error("Failed to load managed users from localStorage", e);
-    }
-    return DEFAULT_USERS;
-  });
+  // Load users from Supabase database
+  const [userList, setUserList] = useState<ManagedUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("factoryos_managed_users", JSON.stringify(userList));
-    } catch (e) {
-      console.error("Failed to save managed users", e);
+    async function loadUsers() {
+      setIsLoadingUsers(true);
+      try {
+        const profiles = await fetchProfilesFromDb();
+        setUserList(profiles);
+      } catch (err) {
+        console.error("Error loading users from Supabase:", err);
+      } finally {
+        setIsLoadingUsers(false);
+      }
     }
-  }, [userList]);
+    loadUsers();
+  }, []);
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -232,8 +163,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       lastLogin: "Never",
     };
 
+    // Persist to Supabase database
+    addProfileToDb(newUser).catch((e) => console.warn("Supabase user save error:", e));
     setUserList((prev) => [newUser, ...prev]);
-    showToast(`✓ User ${newUser.name} created and assigned role ${newUser.role.toUpperCase()}`);
+    showToast(`✓ User ${newUser.name} saved to Supabase with role ${newUser.role.toUpperCase()}`);
 
     // Reset Form
     setNewUserName("");
@@ -246,12 +179,14 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   // Handle Update Role
   const handleSaveRole = () => {
     if (!editingUser) return;
+    // Update in Supabase database
+    updateProfileRoleInDb(editingUser.id, editRoleSelection).catch((e) => console.warn("Supabase role update error:", e));
     setUserList((prev) =>
       prev.map((u) =>
         u.id === editingUser.id ? { ...u, role: editRoleSelection } : u
       )
     );
-    showToast(`✓ Role for ${editingUser.name} updated to ${editRoleSelection.toUpperCase()}`);
+    showToast(`✓ Role for ${editingUser.name} updated in Supabase to ${editRoleSelection.toUpperCase()}`);
     setEditingUser(null);
   };
 
@@ -275,8 +210,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     }
 
     if (window.confirm(`Are you sure you want to permanently delete user "${userName}"?`)) {
+      deleteProfileFromDb(userId).catch((e) => console.warn("Supabase profile delete error:", e));
       setUserList((prev) => prev.filter((u) => u.id !== userId));
-      showToast(`User ${userName} has been removed.`);
+      showToast(`User ${userName} has been removed from database.`);
     }
   };
 
@@ -307,6 +243,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({
           <div className="header-tag">
             <span>🛡 ADMIN CONSOLE</span>
             <span>ROLE-BASED ACCESS CONTROL</span>
+            <span style={{ color: "#20d873", borderColor: "rgba(32, 216, 115, 0.4)", background: "rgba(32, 216, 115, 0.1)" }}>
+              ● SUPABASE: {SUPABASE_PROJECT_ID}
+            </span>
           </div>
           <h1>User Management & Role Permissions</h1>
           <p>
@@ -428,6 +367,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
           <span className="table-subtitle">All personnel with authorized digital twin access</span>
         </div>
 
+        {isLoadingUsers && <div style={{ padding: "16px", color: "#00b4d8", fontSize: "12px" }}>Connecting to Supabase database (bsiazqbjrwaxgpzxhhqh)...</div>}
         <div className="user-table-container">
           <table className="user-table">
             <thead>

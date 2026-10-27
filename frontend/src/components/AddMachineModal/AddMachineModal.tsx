@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import "./AddMachineModal.css";
+import { predictMachineHealthScore } from "../../services/aiHealthScoreModel";
 
 export type MachineStatus = "running" | "warning" | "critical";
 
@@ -26,6 +27,9 @@ export interface Machine {
   height?: number;
   scale?: number;
   isLocked?: boolean;
+  department?: string;
+  type?: string;
+  flankWearMm?: number;
 }
 
 export interface EquipmentPreset {
@@ -380,10 +384,21 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
     const defaultX = `${15 + (staggerIndex % 4) * 22}%`;
     const defaultY = `${20 + Math.floor(staggerIndex / 4) * 35}%`;
 
+    // Multimodal AI Health Score Prediction
+    const aiPrediction = predictMachineHealthScore({
+      name: preset.name,
+      type: preset.category,
+      temperature: preset.defaultTemp,
+      vibration: preset.defaultVib,
+      current: preset.defaultCurrent,
+      speed: preset.defaultSpeed,
+      runtime: 6.5,
+    });
+
     const newMachine: Machine = {
       id: nextId,
       name: preset.name,
-      status: preset.status,
+      status: aiPrediction.status,
       x: defaultX,
       y: defaultY,
       temperature: preset.defaultTemp,
@@ -391,14 +406,15 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
       current: preset.defaultCurrent,
       speed: preset.defaultSpeed,
       runtime: +(Math.random() * 8 + 4).toFixed(1),
-      health: preset.health,
-      failureProbability: preset.health < 80 ? 28 : Math.floor(Math.random() * 6 + 2),
-      failureTime: preset.health < 80 ? "48 hours" : "18 days",
+      health: aiPrediction.healthScore,
+      failureProbability: aiPrediction.failureProbability,
+      failureTime: aiPrediction.remainingUsefulLifeDays,
       location: preset.defaultLocation,
-      installedOn: "27 Oct 2026",
-      lastMaintenance: "20 Oct 2026",
-      recommendation: preset.health < 85 ? "Inspect telemetry sensors and calibrate." : "Continue standard operating cycle.",
-      diagnosis: `Commissioned unit ${preset.name} deployed onto digital twin floor.`,
+      installedOn: new Date().toLocaleDateString("en-GB"),
+      lastMaintenance: new Date().toLocaleDateString("en-GB"),
+      recommendation: aiPrediction.recommendations[0],
+      diagnosis: aiPrediction.diagnosis,
+      flankWearMm: aiPrediction.predictedFlankWearMm,
     };
 
     onAddMachine(newMachine);
@@ -416,25 +432,40 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
     const defaultX = `${18 + (staggerIndex % 4) * 20}%`;
     const defaultY = `${25 + Math.floor(staggerIndex / 4) * 30}%`;
 
+    const parsedTemp = parseFloat(customTemp) || 50.0;
+    const parsedVib = parseFloat(customVib) || 2.0;
+    const parsedCurr = parseFloat(customCurrent) || 8.0;
+    const parsedSpeed = parseInt(customSpeed) || 1200;
+
+    const aiPrediction = predictMachineHealthScore({
+      name: customName.trim(),
+      temperature: parsedTemp,
+      vibration: parsedVib,
+      current: parsedCurr,
+      speed: parsedSpeed,
+      runtime: 5.0,
+    });
+
     const newMachine: Machine = {
       id: customId.trim() || defaultCustomId,
       name: customName.trim(),
-      status: customStatus,
+      status: customStatus || aiPrediction.status,
       x: defaultX,
       y: defaultY,
-      temperature: parseFloat(customTemp) || 50.0,
-      vibration: parseFloat(customVib) || 2.0,
-      current: parseFloat(customCurrent) || 8.0,
-      speed: parseInt(customSpeed) || 1200,
+      temperature: parsedTemp,
+      vibration: parsedVib,
+      current: parsedCurr,
+      speed: parsedSpeed,
       runtime: 5.0,
-      health: parseInt(customHealth) || 95,
-      failureProbability: parseInt(customHealth) < 80 ? 35 : 4,
-      failureTime: parseInt(customHealth) < 80 ? "36 hours" : "16 days",
+      health: aiPrediction.healthScore,
+      failureProbability: aiPrediction.failureProbability,
+      failureTime: aiPrediction.remainingUsefulLifeDays,
       location: customLocation,
-      installedOn: "27 Oct 2026",
-      lastMaintenance: "22 Oct 2026",
-      recommendation: "Initial commission verified. Monitor operational parameters.",
-      diagnosis: "Custom machine unit deployed to factory layout.",
+      installedOn: new Date().toLocaleDateString("en-GB"),
+      lastMaintenance: new Date().toLocaleDateString("en-GB"),
+      recommendation: aiPrediction.recommendations[0],
+      diagnosis: aiPrediction.diagnosis,
+      flankWearMm: aiPrediction.predictedFlankWearMm,
     };
 
     onAddMachine(newMachine);
