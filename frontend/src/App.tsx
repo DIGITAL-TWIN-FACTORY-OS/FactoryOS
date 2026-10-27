@@ -28,6 +28,8 @@ const defaultMachines: Machine[] = [
     status: "running",
     x: "8%",
     y: "12%",
+    width: 135,
+    height: 92,
     temperature: 52.4,
     vibration: 2.1,
     current: 8.4,
@@ -48,6 +50,8 @@ const defaultMachines: Machine[] = [
     status: "running",
     x: "25%",
     y: "12%",
+    width: 135,
+    height: 92,
     temperature: 55.1,
     vibration: 2.4,
     current: 9.1,
@@ -68,6 +72,8 @@ const defaultMachines: Machine[] = [
     status: "running",
     x: "42%",
     y: "12%",
+    width: 135,
+    height: 92,
     temperature: 50.8,
     vibration: 2.0,
     current: 7.8,
@@ -88,6 +94,8 @@ const defaultMachines: Machine[] = [
     status: "warning",
     x: "59%",
     y: "12%",
+    width: 135,
+    height: 92,
     temperature: 68.3,
     vibration: 4.7,
     current: 10.2,
@@ -108,6 +116,8 @@ const defaultMachines: Machine[] = [
     status: "running",
     x: "15%",
     y: "38%",
+    width: 135,
+    height: 92,
     temperature: 48.2,
     vibration: 1.8,
     current: 6.9,
@@ -128,6 +138,8 @@ const defaultMachines: Machine[] = [
     status: "running",
     x: "32%",
     y: "38%",
+    width: 135,
+    height: 92,
     temperature: 49.6,
     vibration: 2.0,
     current: 7.1,
@@ -148,6 +160,8 @@ const defaultMachines: Machine[] = [
     status: "warning",
     x: "49%",
     y: "38%",
+    width: 135,
+    height: 92,
     temperature: 71.5,
     vibration: 4.2,
     current: 15.8,
@@ -168,6 +182,8 @@ const defaultMachines: Machine[] = [
     status: "running",
     x: "8%",
     y: "65%",
+    width: 135,
+    height: 92,
     temperature: 45.3,
     vibration: 1.5,
     current: 5.8,
@@ -188,6 +204,8 @@ const defaultMachines: Machine[] = [
     status: "critical",
     x: "25%",
     y: "65%",
+    width: 135,
+    height: 92,
     temperature: 91.8,
     vibration: 7.6,
     current: 14.2,
@@ -209,6 +227,8 @@ const defaultMachines: Machine[] = [
     status: "running",
     x: "42%",
     y: "65%",
+    width: 135,
+    height: 92,
     temperature: 46.7,
     vibration: 1.7,
     current: 6.1,
@@ -229,6 +249,8 @@ const defaultMachines: Machine[] = [
     status: "critical",
     x: "59%",
     y: "65%",
+    width: 135,
+    height: 92,
     temperature: 86.4,
     vibration: 8.2,
     current: 13.6,
@@ -338,6 +360,11 @@ function App() {
   const [showAddMachineModal, setShowAddMachineModal] = useState(false);
   const [showDragHint, setShowDragHint] = useState(true);
 
+  // LAYOUT EDIT MODE (Lock / Unlock)
+  // When false: layout is locked (view mode: machines cannot be dragged or resized)
+  // When true: layout mode is active (machines can be moved and resized)
+  const [isLayoutMode, setIsLayoutMode] = useState(false);
+
   // Drag & Move state
   const factoryFloorRef = useRef<HTMLElement>(null);
   const [draggingMachineId, setDraggingMachineId] = useState<string | null>(null);
@@ -345,6 +372,15 @@ function App() {
     offsetX: number;
     offsetY: number;
     rect: DOMRect;
+  } | null>(null);
+
+  // Machine Resize state
+  const [resizingMachineId, setResizingMachineId] = useState<string | null>(null);
+  const resizeStartRef = useRef<{
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
   } | null>(null);
 
   useEffect(() => {
@@ -572,10 +608,14 @@ function App() {
 
     setSelectedMachineId(machineId);
 
+    // Only draggable in Layout Mode and if the machine is not locked!
+    if (!isLayoutMode) return;
+
+    const target = machineList.find((m) => m.id === machineId);
+    if (!target || target.isLocked) return;
+
     if (!factoryFloorRef.current) return;
     const rect = factoryFloorRef.current.getBoundingClientRect();
-    const target = machineList.find((m) => m.id === machineId);
-    if (!target) return;
 
     const curXPercent = parseFloat(target.x) || 50;
     const curYPercent = parseFloat(target.y) || 50;
@@ -640,12 +680,97 @@ function App() {
     }
   };
 
+  // RESIZE POINTER HANDLERS
+  const handleResizePointerDown = (
+    e: React.PointerEvent,
+    machineId: string
+  ) => {
+    if (!isLayoutMode) return;
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const target = machineList.find((m) => m.id === machineId);
+    if (!target || target.isLocked) return;
+
+    const curWidth = target.width ?? 135;
+    const curHeight = target.height ?? 92;
+
+    resizeStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: curWidth,
+      startHeight: curHeight,
+    };
+
+    setResizingMachineId(machineId);
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleResizePointerMove = (e: React.PointerEvent) => {
+    if (!resizingMachineId || !resizeStartRef.current) return;
+    const { startX, startY, startWidth, startHeight } = resizeStartRef.current;
+
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+
+    // Clamped width: 90px to 320px; height: 65px to 240px
+    const newWidth = Math.max(90, Math.min(320, Math.round(startWidth + deltaX)));
+    const newHeight = Math.max(65, Math.min(240, Math.round(startHeight + deltaY)));
+
+    setMachineList((prev) =>
+      prev.map((m) =>
+        m.id === resizingMachineId
+          ? {
+              ...m,
+              width: newWidth,
+              height: newHeight,
+            }
+          : m
+      )
+    );
+  };
+
+  const handleResizePointerUp = (e: React.PointerEvent) => {
+    if (resizingMachineId) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+      setResizingMachineId(null);
+      resizeStartRef.current = null;
+    }
+  };
+
+  // Combined Pointer Move / Up for floor canvas
+  const handleFloorPointerMove = (e: React.PointerEvent) => {
+    if (draggingMachineId) {
+      handleMachinePointerMove(e);
+    } else if (resizingMachineId) {
+      handleResizePointerMove(e);
+    }
+  };
+
+  const handleFloorPointerUp = (e: React.PointerEvent) => {
+    if (draggingMachineId) {
+      handleMachinePointerUp(e);
+    }
+    if (resizingMachineId) {
+      handleResizePointerUp(e);
+    }
+  };
+
   // Fine Alignment / Nudge Handlers
   const handleNudgeMachine = (dx: number, dy: number) => {
-    if (!selectedMachineId) return;
+    if (!selectedMachineId || !isLayoutMode) return;
     setMachineList((prev) =>
       prev.map((m) => {
-        if (m.id !== selectedMachineId) return m;
+        if (m.id !== selectedMachineId || m.isLocked) return m;
         const curX = parseFloat(m.x) || 50;
         const curY = parseFloat(m.y) || 50;
         const newX = Math.max(2, Math.min(94, +(curX + dx).toFixed(1)));
@@ -656,10 +781,10 @@ function App() {
   };
 
   const handleSnapToGrid = () => {
-    if (!selectedMachineId) return;
+    if (!selectedMachineId || !isLayoutMode) return;
     setMachineList((prev) =>
       prev.map((m) => {
-        if (m.id !== selectedMachineId) return m;
+        if (m.id !== selectedMachineId || m.isLocked) return m;
         const curX = parseFloat(m.x) || 50;
         const curY = parseFloat(m.y) || 50;
         const snapX = Math.round(curX / 5) * 5;
@@ -674,10 +799,64 @@ function App() {
   };
 
   const handleCenterMachine = () => {
-    if (!selectedMachineId) return;
+    if (!selectedMachineId || !isLayoutMode) return;
     setMachineList((prev) =>
       prev.map((m) =>
-        m.id === selectedMachineId ? { ...m, x: "48%", y: "45%" } : m
+        m.id === selectedMachineId && !m.isLocked
+          ? { ...m, x: "48%", y: "45%" }
+          : m
+      )
+    );
+  };
+
+  // Resize Stepper & Preset Handlers
+  const handleAdjustMachineSize = (dWidth: number, dHeight: number) => {
+    if (!selectedMachineId || !isLayoutMode) return;
+    setMachineList((prev) =>
+      prev.map((m) => {
+        if (m.id !== selectedMachineId || m.isLocked) return m;
+        const curW = m.width ?? 135;
+        const curH = m.height ?? 92;
+        const newW = Math.max(90, Math.min(320, curW + dWidth));
+        const newH = Math.max(65, Math.min(240, curH + dHeight));
+        return { ...m, width: newW, height: newH };
+      })
+    );
+  };
+
+  const handleSetSizePreset = (preset: "S" | "M" | "L" | "XL") => {
+    if (!selectedMachineId || !isLayoutMode) return;
+    const sizes = {
+      S: { width: 105, height: 75 },
+      M: { width: 135, height: 92 },
+      L: { width: 180, height: 115 },
+      XL: { width: 230, height: 140 },
+    };
+    const { width, height } = sizes[preset];
+    setMachineList((prev) =>
+      prev.map((m) =>
+        m.id === selectedMachineId && !m.isLocked
+          ? { ...m, width, height }
+          : m
+      )
+    );
+  };
+
+  const handleResetMachineSize = () => {
+    if (!selectedMachineId || !isLayoutMode) return;
+    setMachineList((prev) =>
+      prev.map((m) =>
+        m.id === selectedMachineId && !m.isLocked
+          ? { ...m, width: 135, height: 92 }
+          : m
+      )
+    );
+  };
+
+  const handleToggleMachineLock = (id: string) => {
+    setMachineList((prev) =>
+      prev.map((m) =>
+        m.id === id ? { ...m, isLocked: !m.isLocked } : m
       )
     );
   };
@@ -701,7 +880,7 @@ function App() {
   const handleResetDefaultLayout = () => {
     if (
       window.confirm(
-        "Reset all machines and equipment to the original factory default positions?"
+        "Reset all machines and equipment to the original factory default positions and sizes?"
       )
     ) {
       setMachineList(defaultMachines);
@@ -713,6 +892,7 @@ function App() {
   const handleAddMachine = (newMachine: Machine) => {
     setMachineList((prev) => [...prev, newMachine]);
     setSelectedMachineId(newMachine.id);
+    setIsLayoutMode(true); // Automatically enter Layout Mode so they can align it right away!
   };
 
   if (isPasswordRecovery) {
@@ -893,10 +1073,10 @@ function App() {
         <div className="factory-dashboard">
           {/* FACTORY FLOOR & MAP */}
           <section
-            className="factory-area"
+            className={`factory-area ${isLayoutMode ? "layout-mode-active" : ""}`}
             ref={factoryFloorRef}
-            onPointerMove={handleMachinePointerMove}
-            onPointerUp={handleMachinePointerUp}
+            onPointerMove={handleFloorPointerMove}
+            onPointerUp={handleFloorPointerUp}
           >
             {/* Blueprint Background */}
             {blueprint && showBlueprint && (
@@ -926,8 +1106,10 @@ function App() {
             {/* Drag & Align Hint */}
             {showDragHint && (
               <div className="layout-drag-hint">
-                <span>💡 Tip:</span>
-                Drag any machine card to align it anywhere on the floor. Click ＋ to add equipment.
+                <span>{isLayoutMode ? "📐 Layout Mode:" : "🔒 Locked:"}</span>
+                {isLayoutMode
+                  ? "Drag any machine to move. Drag bottom-right corner ⤡ to resize."
+                  : "Floor is locked. Click 'Locked (View Mode)' in toolbar to enable moving & resizing."}
               </div>
             )}
 
@@ -935,6 +1117,10 @@ function App() {
             {machineList.map((machine) => {
               const isSelected = selectedMachineId === machine.id;
               const isDragging = draggingMachineId === machine.id;
+              const isResizing = resizingMachineId === machine.id;
+              const width = machine.width ?? 135;
+              const height = machine.height ?? 92;
+
               return (
                 <div
                   key={machine.id}
@@ -944,15 +1130,37 @@ function App() {
                   style={{
                     left: machine.x,
                     top: machine.y,
-                    cursor: isDragging ? "grabbing" : "grab",
+                    width: `${width}px`,
+                    minHeight: `${height}px`,
+                    height: `${height}px`,
+                    cursor: !isLayoutMode
+                      ? "pointer"
+                      : machine.isLocked
+                      ? "not-allowed"
+                      : isDragging
+                      ? "grabbing"
+                      : "grab",
                   }}
                   onPointerDown={(e) => handleMachinePointerDown(e, machine.id)}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedMachineId(machine.id);
                   }}
-                  title={`Machine ${machine.id}: ${machine.name} (${machine.status}) • Drag to reposition`}
+                  title={
+                    isLayoutMode
+                      ? machine.isLocked
+                        ? `Machine ${machine.id} is Locked (Cannot move or resize)`
+                        : `Machine ${machine.id}: Drag to move • Corner ⤡ to resize`
+                      : `Machine ${machine.id}: ${machine.name} (${machine.status}) • Click to inspect`
+                  }
                 >
+                  {/* Lock Badge if machine is locked */}
+                  {machine.isLocked && (
+                    <span className="machine-lock-badge" title="Machine locked in place">
+                      🔒
+                    </span>
+                  )}
+
                   <div className="machine-symbol">
                     {getMachineIcon(machine.name)}
                   </div>
@@ -961,16 +1169,33 @@ function App() {
                     <small>{machine.name}</small>
                   </div>
                   <span className="machine-light" />
+
+                  {/* Corner Resize Grip (Active only in Layout Mode for selected machine) */}
+                  {isLayoutMode && isSelected && !machine.isLocked && (
+                    <div
+                      className="machine-resize-handle"
+                      onPointerDown={(e) => handleResizePointerDown(e, machine.id)}
+                      title="Click and drag to resize machine"
+                    >
+                      ⤡
+                    </div>
+                  )}
+
+                  {/* Coordinates & Size tag */}
                   {isSelected && (
                     <div className="machine-coords-tag">
-                      {machine.x}, {machine.y} {isDragging ? "• Moving" : ""}
+                      {machine.x}, {machine.y}
+                      {isLayoutMode && !machine.isLocked && ` • ${width}×${height}px`}
+                      {machine.isLocked && " • 🔒 Locked"}
+                      {isDragging && " • Moving"}
+                      {isResizing && " • Resizing"}
                     </div>
                   )}
                 </div>
               );
             })}
 
-            {/* Floating Machine Alignment Dock */}
+            {/* Floating Machine Alignment & Resizing Dock */}
             {selectedMachine && (
               <div className="layout-align-dock" onClick={(e) => e.stopPropagation()}>
                 <div className="align-dock-info">
@@ -982,61 +1207,195 @@ function App() {
                   </span>
                 </div>
 
-                <div className="align-dock-nudges">
-                  <button
-                    type="button"
-                    onClick={() => handleNudgeMachine(-1, 0)}
-                    title="Nudge Left 1%"
-                  >
-                    ◀
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNudgeMachine(0, -1)}
-                    title="Nudge Up 1%"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNudgeMachine(0, 1)}
-                    title="Nudge Down 1%"
-                  >
-                    ▼
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNudgeMachine(1, 0)}
-                    title="Nudge Right 1%"
-                  >
-                    ▶
-                  </button>
-                </div>
+                {!isLayoutMode ? (
+                  /* VIEW ONLY / LOCKED DOCK */
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "11px", color: "#8da4be" }}>
+                      🔒 Layout Locked (View Mode)
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-layout-mode locked"
+                      style={{ padding: "4px 10px", fontSize: "11px" }}
+                      onClick={() => setIsLayoutMode(true)}
+                      title="Enter Layout Mode to move, align, and resize machines"
+                    >
+                      🔓 Unlock Layout Mode
+                    </button>
+                  </div>
+                ) : (
+                  /* LAYOUT EDIT MODE (MOVABLE & RESIZABLE) */
+                  <>
+                    {/* Per-Machine Lock Toggle */}
+                    <button
+                      type="button"
+                      className={`btn-align-lock ${selectedMachine.isLocked ? "is-locked" : ""}`}
+                      onClick={() => handleToggleMachineLock(selectedMachine.id)}
+                      title={
+                        selectedMachine.isLocked
+                          ? "Unlock this machine so it can be moved and resized"
+                          : "Lock this machine in place"
+                      }
+                    >
+                      <span>{selectedMachine.isLocked ? "🔒 Locked" : "🔓 Unlocked"}</span>
+                    </button>
 
-                <div className="align-dock-tools">
-                  <button
-                    type="button"
-                    onClick={handleSnapToGrid}
-                    title="Snap to 5% Floor Grid"
-                  >
-                    ⊞ Snap Grid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCenterMachine}
-                    title="Center on Floor"
-                  >
-                    ⊙ Center
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-align-delete"
-                    onClick={() => handleDeleteMachine(selectedMachine.id)}
-                    title="Remove machine from layout"
-                  >
-                    🗑
-                  </button>
-                </div>
+                    {/* Nudge Alignment (◀ ▲ ▼ ▶) */}
+                    <div className="align-dock-nudges">
+                      <button
+                        type="button"
+                        onClick={() => handleNudgeMachine(-1, 0)}
+                        title="Nudge Left 1%"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        ◀
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleNudgeMachine(0, -1)}
+                        title="Nudge Up 1%"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleNudgeMachine(0, 1)}
+                        title="Nudge Down 1%"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        ▼
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleNudgeMachine(1, 0)}
+                        title="Nudge Right 1%"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        ▶
+                      </button>
+                    </div>
+
+                    {/* Resize Controls */}
+                    <div className="align-dock-resizing">
+                      <span className="align-dock-resizing-label">Size:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustMachineSize(-10, 0)}
+                        title="Narrower (-10px)"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        W−
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustMachineSize(10, 0)}
+                        title="Wider (+10px)"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        W+
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustMachineSize(0, -10)}
+                        title="Shorter (-10px)"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        H−
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustMachineSize(0, 10)}
+                        title="Taller (+10px)"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        H+
+                      </button>
+
+                      {/* Size Presets */}
+                      <button
+                        type="button"
+                        onClick={() => handleSetSizePreset("S")}
+                        title="Small Preset (105×75)"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        S
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetSizePreset("M")}
+                        title="Medium / Default Preset (135×92)"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        M
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetSizePreset("L")}
+                        title="Large Preset (180×115)"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        L
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetSizePreset("XL")}
+                        title="Extra Large Cell (230×140)"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        XL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetMachineSize}
+                        title="Reset machine size to default"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        ↺
+                      </button>
+                    </div>
+
+                    {/* Alignment Tools */}
+                    <div className="align-dock-tools">
+                      <button
+                        type="button"
+                        onClick={handleSnapToGrid}
+                        title="Snap to 5% Floor Grid"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        ⊞ Snap Grid
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCenterMachine}
+                        title="Center on Floor"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        ⊙ Center
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-align-delete"
+                        onClick={() => handleDeleteMachine(selectedMachine.id)}
+                        title="Remove machine from layout"
+                      >
+                        🗑
+                      </button>
+                      <button
+                        type="button"
+                        style={{
+                          background: "#00b4d8",
+                          color: "#04101b",
+                          fontWeight: 700,
+                        }}
+                        onClick={() => setIsLayoutMode(false)}
+                        title="Lock layout and finish editing"
+                      >
+                        🔒 Lock Floor
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1047,12 +1406,30 @@ function App() {
                 <div>
                   <strong>Factory Layout & Digital Twin</strong>
                   <span>
-                    {machineList.length} machines deployed • Click & drag to align
+                    {machineList.length} machines deployed •{" "}
+                    {isLayoutMode
+                      ? "Layout Mode Active (Movable & Resizable)"
+                      : "Floor Locked (Click to Edit)"}
                   </span>
                 </div>
               </div>
 
               <div className="factory-toolbar-actions">
+                {/* Layout Mode Lock/Unlock Master Toggle */}
+                <button
+                  type="button"
+                  className={`btn-layout-mode ${isLayoutMode ? "active" : "locked"}`}
+                  onClick={() => setIsLayoutMode((v) => !v)}
+                  title={
+                    isLayoutMode
+                      ? "Layout Mode is ACTIVE (Movable & Resizable). Click to Lock."
+                      : "Layout is LOCKED. Click to enter Layout Mode and edit positions & sizes."
+                  }
+                >
+                  <span className="mode-icon">{isLayoutMode ? "🔓" : "🔒"}</span>
+                  <span>{isLayoutMode ? "Layout Mode: ON" : "Locked (View Mode)"}</span>
+                </button>
+
                 {/* Plus Sign Add Machine Button */}
                 <button
                   type="button"
@@ -1515,6 +1892,13 @@ function App() {
                     <span>Status</span>
                     <strong className={`status-text ${selectedMachine.status}`}>
                       {getStatusLabel(selectedMachine.status)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Dimensions</span>
+                    <strong>
+                      {selectedMachine.width ?? 135} × {selectedMachine.height ?? 92} px
                     </strong>
                   </div>
 

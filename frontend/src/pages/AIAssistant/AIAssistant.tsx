@@ -20,6 +20,10 @@ export interface Machine {
   lastMaintenance: string;
   recommendation: string;
   diagnosis: string;
+  width?: number;
+  height?: number;
+  scale?: number;
+  isLocked?: boolean;
 }
 
 export interface Alert {
