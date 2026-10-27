@@ -1,0 +1,356 @@
+/* =========================================
+   ALERTS MANAGEMENT STYLES
+========================================= */
+
+.alerts-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  min-height: calc(100vh - 70px);
+  box-sizing: border-box;
+  color: #e7eef6;
+  background: #07111b;
+}
+
+/* Header Banner */
+.alerts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #0e1e2e;
+  border: 1px solid #203448;
+  border-radius: 8px;
+}
+
+.alerts-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alerts-icon-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e63946, #b7094c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 0 12px rgba(230, 57, 70, 0.4);
+}
+
+.alerts-title-group h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #f0f6fc;
+}
+
+.alerts-title-group span {
+  font-size: 0.85rem;
+  color: #8da4be;
+}
+
+.alerts-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-ack-all {
+  padding: 8px 14px;
+  background: #1b354d;
+  border: 1px solid #2a4f70;
+  color: #90e0ef;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-ack-all:hover {
+  background: #25476a;
+  color: #ffffff;
+}
+
+/* KPI Ribbon */
+.alerts-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.alerts-kpi-card {
+  background: #0d1b2a;
+  border: 1px solid #203448;
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.alerts-kpi-card span {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: #8da4be;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.alerts-kpi-card strong {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.alerts-kpi-card small {
+  font-size: 0.75rem;
+  color: #6c8299;
+  margin-top: 4px;
+}
+
+/* Filter Toolbar */
+.alerts-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #0e1e2e;
+  border: 1px solid #203448;
+  border-radius: 8px;
+  align-items: center;
+}
+
+.alerts-search-box {
+  flex: 1;
+  min-width: 240px;
+}
+
+.alerts-search-input {
+  width: 100%;
+  background: #07111b;
+  border: 1px solid #263e56;
+  border-radius: 6px;
+  padding: 8px 14px;
+  color: #ffffff;
+  font-size: 0.88rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.alerts-search-input:focus {
+  border-color: #00b4d8;
+}
+
+.alerts-select {
+  background: #07111b;
+  border: 1px solid #263e56;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.alerts-select:focus {
+  border-color: #00b4d8;
+}
+
+/* Alert List Cards */
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.alert-item-card {
+  background: #0d1b2a;
+  border: 1px solid #203448;
+  border-left: 5px solid #2a4f70;
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.alert-item-card:hover {
+  background: #102133;
+  border-color: #2e4d6d;
+}
+
+.alert-item-card.critical {
+  border-left-color: #ff4d4f;
+  background: linear-gradient(90deg, rgba(255, 77, 79, 0.08), #0d1b2a 35%);
+}
+
+.alert-item-card.warning {
+  border-left-color: #ffb84d;
+  background: linear-gradient(90deg, rgba(255, 184, 77, 0.08), #0d1b2a 35%);
+}
+
+.alert-item-card.info {
+  border-left-color: #00b4d8;
+  background: linear-gradient(90deg, rgba(0, 180, 216, 0.08), #0d1b2a 35%);
+}
+
+.alert-item-card.resolved {
+  opacity: 0.65;
+  border-left-color: #52c41a;
+  background: #081420;
+}
+
+.alert-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.alert-machine-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f0f6fc;
+}
+
+.alert-type-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.alert-type-badge.critical {
+  background: rgba(255, 77, 79, 0.25);
+  color: #ff7875;
+  border: 1px solid rgba(255, 77, 79, 0.5);
+}
+
+.alert-type-badge.warning {
+  background: rgba(255, 184, 77, 0.25);
+  color: #ffc069;
+  border: 1px solid rgba(255, 184, 77, 0.5);
+}
+
+.alert-type-badge.info {
+  background: rgba(0, 180, 216, 0.25);
+  color: #90e0ef;
+  border: 1px solid rgba(0, 180, 216, 0.5);
+}
+
+.alert-time {
+  font-size: 0.8rem;
+  color: #8da4be;
+}
+
+.alert-message-content {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: #e0eaf4;
+}
+
+.alert-context-box {
+  display: flex;
+  gap: 16px;
+  background: #07111b;
+  border: 1px solid #1a2d40;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.alert-context-item {
+  display: flex;
+  gap: 6px;
+}
+
+.alert-context-item span {
+  color: #8da4be;
+}
+
+.alert-context-item strong {
+  color: #ffffff;
+}
+
+.alert-bottom-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid #16283b;
+}
+
+.alert-state-tag {
+  font-size: 0.76rem;
+  color: #8da4be;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-alert-action {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-ack {
+  background: #1b354d;
+  border: 1px solid #2a4f70;
+  color: #90e0ef;
+}
+
+.btn-ack:hover {
+  background: #25476a;
+  color: #ffffff;
+}
+
+.btn-resolve {
+  background: rgba(82, 196, 26, 0.2);
+  border: 1px solid rgba(82, 196, 26, 0.5);
+  color: #52c41a;
+}
+
+.btn-resolve:hover {
+  background: rgba(82, 196, 26, 0.35);
+}
+
+.btn-diagnose {
+  background: #0077b6;
+  border: none;
+  color: #ffffff;
+}
+
+.btn-diagnose:hover {
+  background: #0096c7;
+}
+
+.btn-wo-alert {
+  background: #ff4d4f;
+  border: none;
+  color: #ffffff;
+}
+
+.btn-wo-alert:hover {
+  background: #ff7875;
+}

@@ -1,0 +1,419 @@
+/* =========================================
+   MACHINES DIRECTORY STYLES
+========================================= */
+
+.machines-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  min-height: calc(100vh - 70px);
+  box-sizing: border-box;
+  color: #e7eef6;
+  background: #07111b;
+}
+
+/* Header */
+.machines-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #0e1e2e;
+  border: 1px solid #203448;
+  border-radius: 8px;
+}
+
+.machines-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.machines-icon-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #4361ee, #3a0ca3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 0 12px rgba(67, 97, 238, 0.4);
+}
+
+.machines-title-group h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #f0f6fc;
+}
+
+.machines-title-group span {
+  font-size: 0.85rem;
+  color: #8da4be;
+}
+
+.machines-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.view-toggle-btn {
+  padding: 6px 12px;
+  background: #142436;
+  border: 1px solid #23394f;
+  border-radius: 6px;
+  color: #8da4be;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-toggle-btn.active {
+  background: #0077b6;
+  color: #ffffff;
+  border-color: #00b4d8;
+  font-weight: 600;
+}
+
+/* KPI Summary */
+.machines-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.machines-kpi-card {
+  background: #0d1b2a;
+  border: 1px solid #203448;
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.machines-kpi-card span {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  color: #8da4be;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.machines-kpi-card strong {
+  font-size: 1.45rem;
+  font-weight: 700;
+}
+
+.machines-kpi-card small {
+  font-size: 0.74rem;
+  color: #6c8299;
+  margin-top: 4px;
+}
+
+/* Filter Toolbar */
+.machines-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #0e1e2e;
+  border: 1px solid #203448;
+  border-radius: 8px;
+  align-items: center;
+}
+
+.machines-search-box {
+  flex: 1;
+  min-width: 220px;
+}
+
+.machines-search-input {
+  width: 100%;
+  background: #07111b;
+  border: 1px solid #263e56;
+  border-radius: 6px;
+  padding: 8px 14px;
+  color: #ffffff;
+  font-size: 0.88rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.machines-search-input:focus {
+  border-color: #00b4d8;
+}
+
+.machines-select {
+  background: #07111b;
+  border: 1px solid #263e56;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.machines-select:focus {
+  border-color: #00b4d8;
+}
+
+/* Machine Grid Layout */
+.machines-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.machine-card-detailed {
+  background: #0d1b2a;
+  border: 1px solid #203448;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.machine-card-detailed:hover {
+  transform: translateY(-2px);
+  border-color: #2f4f72;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.machine-card-detailed.critical {
+  border-top: 4px solid #ff4d4f;
+  background: linear-gradient(180deg, rgba(255, 77, 79, 0.06), #0d1b2a 45%);
+}
+
+.machine-card-detailed.warning {
+  border-top: 4px solid #ffb84d;
+  background: linear-gradient(180deg, rgba(255, 184, 77, 0.06), #0d1b2a 45%);
+}
+
+.machine-card-detailed.running {
+  border-top: 4px solid #00ffc4;
+}
+
+.machine-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.machine-id-badge {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f0f6fc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.machine-location-tag {
+  font-size: 0.74rem;
+  color: #8da4be;
+  display: block;
+  margin-top: 2px;
+}
+
+.machine-status-pill {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.machine-status-pill.running {
+  background: rgba(0, 255, 196, 0.15);
+  color: #00ffc4;
+  border: 1px solid rgba(0, 255, 196, 0.4);
+}
+
+.machine-status-pill.warning {
+  background: rgba(255, 184, 77, 0.15);
+  color: #ffb84d;
+  border: 1px solid rgba(255, 184, 77, 0.4);
+}
+
+.machine-status-pill.critical {
+  background: rgba(255, 77, 79, 0.2);
+  color: #ff4d4f;
+  border: 1px solid rgba(255, 77, 79, 0.5);
+}
+
+/* Health and Failure probability progress */
+.machine-health-risk-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: #081420;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #162a3e;
+}
+
+.health-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.health-col span {
+  font-size: 0.72rem;
+  color: #8da4be;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.health-val {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Telemetry Grid inside Card */
+.machine-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.telemetry-cell {
+  background: #081420;
+  padding: 8px 10px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #14283c;
+}
+
+.telemetry-cell span {
+  font-size: 0.68rem;
+  color: #8da4be;
+  text-transform: uppercase;
+}
+
+.telemetry-cell strong {
+  font-size: 0.88rem;
+  margin-top: 2px;
+  font-family: monospace;
+}
+
+.machine-diag-preview {
+  font-size: 0.8rem;
+  color: #c9d8e7;
+  line-height: 1.4;
+  background: #112336;
+  border-left: 3px solid #00b4d8;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.machine-dates-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: #6c8299;
+}
+
+.machine-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-card-inspect {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  background: #1b354d;
+  border: 1px solid #2a4f70;
+  color: #90e0ef;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+
+.btn-card-inspect:hover {
+  background: #25476a;
+  color: #ffffff;
+}
+
+.btn-card-ai {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  background: #0077b6;
+  border: none;
+  color: #ffffff;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-weight: 600;
+}
+
+.btn-card-ai:hover {
+  background: #0096c7;
+}
+
+/* Modal */
+.machine-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.machine-modal {
+  background: #0e1e2e;
+  border: 1px solid #2a4766;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+}
+
+.machine-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #203448;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.machine-modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #f0f6fc;
+}
+
+.machine-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  color: #8da4be;
+  cursor: pointer;
+}
+
+.machine-modal-close:hover {
+  color: #ffffff;
+}

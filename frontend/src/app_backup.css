@@ -1,0 +1,1757 @@
+/* =========================================================
+   FACTORYOS - SMART FACTORY DIGITAL TWIN
+   Main Application Styles
+   ========================================================= */
+
+
+/* =========================================================
+   GLOBAL DASHBOARD
+   ========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+.factory-dashboard {
+  width: 100%;
+  min-height: 100%;
+  padding: 10px;
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    305px;
+
+  grid-template-rows:
+    minmax(520px, 1fr)
+    auto;
+
+  gap: 10px;
+
+  background: #06101a;
+  color: #e6edf5;
+
+  font-family:
+    Inter,
+    "Segoe UI",
+    Arial,
+    sans-serif;
+}
+
+
+/* =========================================================
+   FACTORY MAP
+   ========================================================= */
+
+.factory-area {
+  position: relative;
+
+  min-height: 520px;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(27, 48, 65, 0.32),
+      transparent 60%
+    ),
+    #0a151f;
+
+  border: 1px solid #243444;
+  border-radius: 6px;
+
+  box-shadow:
+    inset 0 0 35px rgba(0, 0, 0, 0.35),
+    0 4px 15px rgba(0, 0, 0, 0.25);
+}
+
+
+/* =========================================================
+   SCALE
+   ========================================================= */
+
+.scale-box {
+  position: absolute;
+
+  top: 16px;
+  left: 16px;
+
+  width: 135px;
+  height: 58px;
+
+  padding: 9px 12px;
+
+  background: rgba(10, 20, 30, 0.92);
+
+  border: 1px solid #344656;
+  border-radius: 5px;
+
+  z-index: 30;
+
+  font-size: 11px;
+}
+
+.scale-box small {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #8c9bab;
+
+  font-size: 9px;
+}
+
+.scale-box > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scale-box span {
+  color: #d9e4ee;
+}
+
+.scale-line {
+  width: 70px;
+  height: 2px;
+
+  background: #d8e1ea;
+
+  position: relative;
+}
+
+.scale-line::before,
+.scale-line::after {
+  content: "";
+
+  position: absolute;
+
+  top: -4px;
+
+  width: 1px;
+  height: 10px;
+
+  background: #d8e1ea;
+}
+
+.scale-line::before {
+  left: 0;
+}
+
+.scale-line::after {
+  right: 0;
+}
+
+
+/* =========================================================
+   FACTORY ROOMS
+   ========================================================= */
+
+.factory-room {
+  position: absolute;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+
+  color: #dce7f1;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  line-height: 1.5;
+
+  border: 1px solid #405363;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18, 31, 43, 0.75),
+      rgba(8, 18, 27, 0.75)
+    );
+
+  letter-spacing: 0.2px;
+
+  z-index: 2;
+}
+
+
+/* Raw Material Store */
+
+.raw-material {
+  left: 1%;
+  top: 13%;
+
+  width: 12%;
+  height: 30%;
+}
+
+
+/* Quality Inspection */
+
+.quality-room {
+  right: 1%;
+  top: 16%;
+
+  width: 12%;
+  height: 27%;
+}
+
+
+/* Finished Goods */
+
+.finished-room {
+  right: 1%;
+  top: 62%;
+
+  width: 12%;
+  height: 26%;
+}
+
+
+/* Electrical Room */
+
+.electrical-room {
+  left: 18%;
+  bottom: 2%;
+
+  width: 17%;
+  height: 17%;
+}
+
+
+/* Maintenance Room */
+
+.maintenance-room {
+  left: 37%;
+  bottom: 2%;
+
+  width: 17%;
+  height: 17%;
+}
+
+
+/* Compressor Room */
+
+.compressor-room {
+  left: 57%;
+  bottom: 2%;
+
+  width: 24%;
+  height: 17%;
+}
+
+
+/* =========================================================
+   MACHINES
+   ========================================================= */
+
+.machine {
+  position: absolute;
+
+  width: 135px;
+  min-height: 92px;
+
+  transform: translate(-50%, -50%);
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 14px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #1c2a37,
+      #101c27
+    );
+
+  border: 1px solid #526474;
+
+  border-bottom: 3px solid #d5ad00;
+
+  border-radius: 2px;
+
+  cursor: pointer;
+
+  z-index: 10;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+
+/* Machine hover */
+
+.machine:hover {
+  transform: translate(-50%, -50%) scale(1.04);
+
+  background:
+    linear-gradient(
+      145deg,
+      #243746,
+      #13222e
+    );
+
+  box-shadow:
+    0 5px 18px rgba(0, 0, 0, 0.35);
+}
+
+
+/* Machine icon */
+
+.machine-symbol {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  background: #334453;
+
+  color: #c8d9e9;
+
+  font-size: 21px;
+
+  border-radius: 2px;
+}
+
+
+/* Machine text */
+
+.machine strong {
+  display: block;
+
+  color: #f0f5f9;
+
+  font-size: 14px;
+
+  margin-bottom: 5px;
+}
+
+.machine small {
+  display: block;
+
+  color: #aab9c8;
+
+  font-size: 9px;
+
+  line-height: 1.3;
+}
+
+
+/* =========================================================
+   MACHINE STATUS LIGHT
+   ========================================================= */
+
+.machine-light {
+  position: absolute;
+
+  right: 8px;
+  bottom: 9px;
+
+  width: 11px;
+  height: 11px;
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 8px currentColor;
+}
+
+
+/* Running */
+
+.machine-running {
+  border-bottom-color: #d5ad00;
+}
+
+.machine-running .machine-light {
+  background: #25d36f;
+  color: #25d36f;
+}
+
+
+/* Warning */
+
+.machine-warning {
+  border-color: #725f00;
+
+  border-bottom-color: #e0b900;
+}
+
+.machine-warning .machine-light {
+  background: #f5c400;
+  color: #f5c400;
+}
+
+
+/* Critical */
+
+.machine-critical {
+  border-color: #6f2c35;
+
+  border-bottom-color: #d93645;
+
+  box-shadow:
+    0 0 8px rgba(220, 50, 65, 0.15);
+}
+
+.machine-critical .machine-light {
+  background: #f04452;
+  color: #f04452;
+}
+
+
+/* Maintenance */
+
+.machine-maintenance {
+  border-bottom-color: #3e9be8;
+}
+
+.machine-maintenance .machine-light {
+  background: #3e9be8;
+  color: #3e9be8;
+}
+
+
+/* =========================================================
+   SELECTED MACHINE
+   ========================================================= */
+
+.machine-selected {
+  z-index: 50;
+
+  transform:
+    translate(-50%, -50%)
+    scale(1.08);
+
+  border: 2px solid #ffffff !important;
+
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.12),
+    0 0 18px rgba(255, 255, 255, 0.55),
+    0 0 35px rgba(255, 255, 255, 0.18);
+}
+
+
+/* Selected machine hover */
+
+.machine-selected:hover {
+  transform:
+    translate(-50%, -50%)
+    scale(1.1);
+}
+
+
+/* Outer selection ring */
+
+.machine-selected::before {
+  content: "";
+
+  position: absolute;
+
+  inset: -9px;
+
+  border: 2px solid rgba(255, 255, 255, 0.8);
+
+  border-radius: 7px;
+
+  animation:
+    machineSelectionPulse 1.5s infinite;
+
+  pointer-events: none;
+}
+
+
+/* Second ring */
+
+.machine-selected::after {
+  content: "";
+
+  position: absolute;
+
+  inset: -16px;
+
+  border: 1px solid rgba(255, 255, 255, 0.35);
+
+  border-radius: 11px;
+
+  animation:
+    machineSelectionOuterPulse 1.5s infinite;
+
+  pointer-events: none;
+}
+
+
+@keyframes machineSelectionPulse {
+
+  0% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+
+  70% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+
+}
+
+
+@keyframes machineSelectionOuterPulse {
+
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+
+  70% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+
+}
+
+
+/* =========================================================
+   SELECTED LABEL
+   ========================================================= */
+
+.selected-indicator {
+  position: absolute;
+
+  top: -31px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  padding: 4px 9px;
+
+  background: rgba(7, 13, 20, 0.96);
+
+  color: #ffffff;
+
+  border: 1px solid rgba(255, 255, 255, 0.7);
+
+  border-radius: 4px;
+
+  font-size: 9px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.8px;
+
+  white-space: nowrap;
+
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.25);
+
+  pointer-events: none;
+
+  animation:
+    selectedLabelAppear 0.2s ease-out;
+}
+
+
+@keyframes selectedLabelAppear {
+
+  from {
+    opacity: 0;
+
+    transform:
+      translateX(-50%)
+      translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateX(-50%)
+      translateY(0);
+  }
+
+}
+
+
+/* =========================================================
+   ENTRY / EXIT
+   ========================================================= */
+
+.entry-label {
+  position: absolute;
+
+  left: 5%;
+  bottom: 12%;
+
+  color: #d8e3ed;
+
+  font-size: 11px;
+
+  font-weight: 500;
+
+  z-index: 5;
+}
+
+
+/* =========================================================
+   FLOOR PATHS
+   ========================================================= */
+
+.floor-path {
+  position: absolute;
+
+  border-top: 2px dashed rgba(219, 182, 0, 0.8);
+
+  z-index: 1;
+
+  pointer-events: none;
+}
+
+
+.path-one {
+  left: 15%;
+  right: 18%;
+  top: 43%;
+}
+
+
+.path-two {
+  left: 16%;
+  right: 17%;
+  top: 65%;
+}
+
+
+/* =========================================================
+   MAP CONTROLS
+   ========================================================= */
+
+.map-controls {
+  position: absolute;
+
+  left: 16px;
+  bottom: 15px;
+
+  display: flex;
+  flex-direction: column;
+
+  z-index: 30;
+
+  border: 1px solid #344656;
+
+  background: #0c1822;
+}
+
+
+.map-controls button {
+  width: 38px;
+  height: 38px;
+
+  border: none;
+
+  border-bottom: 1px solid #344656;
+
+  background: transparent;
+
+  color: #e3edf5;
+
+  font-size: 21px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+
+.map-controls button:last-child {
+  border-bottom: none;
+}
+
+
+.map-controls button:hover {
+  background: #1a2c3d;
+
+  color: #ffffff;
+}
+
+
+/* =========================================================
+   LIVE MAP LABEL
+   ========================================================= */
+
+.live-map-label {
+  position: absolute;
+
+  right: 15px;
+  bottom: 14px;
+
+  padding: 8px 13px;
+
+  background: rgba(5, 13, 20, 0.9);
+
+  border-radius: 5px;
+
+  color: #cbd8e4;
+
+  font-size: 10px;
+
+  z-index: 30;
+}
+
+
+.live-map-label span {
+  color: #20d16a;
+
+  margin-right: 4px;
+
+  text-shadow:
+    0 0 8px #20d16a;
+}
+
+
+/* =========================================================
+   ALERT PANEL
+   ========================================================= */
+
+.alerts-panel {
+  min-height: 520px;
+
+  overflow: hidden;
+
+  background: #09141f;
+
+  border: 1px solid #243444;
+
+  border-radius: 6px;
+
+  display: flex;
+
+  flex-direction: column;
+}
+
+
+.panel-heading {
+  height: 58px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 16px;
+
+  border-bottom: 1px solid #263747;
+}
+
+
+.panel-heading strong {
+  color: #e8f0f7;
+
+  font-size: 14px;
+}
+
+
+.panel-heading span {
+  color: #4da4ed;
+
+  font-size: 10px;
+
+  cursor: pointer;
+}
+
+
+.alert-item {
+  min-height: 82px;
+
+  display: flex;
+
+  gap: 13px;
+
+  padding: 14px;
+
+  border-bottom: 1px solid #1d2c3a;
+
+  transition:
+    background 0.2s ease;
+}
+
+
+.alert-item:hover {
+  background: #101f2d;
+}
+
+
+.alert-icon {
+  width: 25px;
+  height: 25px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 16px;
+}
+
+
+.alert-icon.critical {
+  color: #f23d4d;
+
+  text-shadow:
+    0 0 8px rgba(242, 61, 77, 0.7);
+}
+
+
+.alert-icon.warning {
+  color: #f4c52d;
+
+  text-shadow:
+    0 0 8px rgba(244, 197, 45, 0.6);
+}
+
+
+.alert-icon.info {
+  color: #53aeea;
+}
+
+
+.alert-content {
+  flex: 1;
+
+  min-width: 0;
+}
+
+
+.alert-title-row {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 8px;
+}
+
+
+.alert-title-row strong {
+  color: #e8eef4;
+
+  font-size: 11px;
+}
+
+
+.alert-title-row small {
+  color: #7890a4;
+
+  font-size: 8px;
+
+  white-space: nowrap;
+}
+
+
+.alert-content p {
+  margin: 7px 0 0;
+
+  color: #8295a8;
+
+  font-size: 9px;
+
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+   BOTTOM PANELS
+   ========================================================= */
+
+.bottom-panels {
+  grid-column: 1 / -1;
+
+  display: grid;
+
+  grid-template-columns:
+    1fr
+    1.25fr
+    1.4fr
+    1fr
+    1.5fr;
+
+  gap: 10px;
+
+  min-width: 0;
+}
+
+
+/* =========================================================
+   INFORMATION CARDS
+   ========================================================= */
+
+.info-card {
+  min-width: 0;
+
+  background: #09141f;
+
+  border: 1px solid #263747;
+
+  border-radius: 5px;
+
+  overflow: hidden;
+}
+
+
+.info-card h3 {
+  margin: 0;
+
+  padding: 14px;
+
+  border-bottom: 1px solid #253544;
+
+  color: #e9f0f6;
+
+  font-size: 13px;
+
+  font-weight: 600;
+}
+
+
+/* =========================================================
+   PRODUCTION
+   ========================================================= */
+
+.production-card {
+  padding-bottom: 15px;
+}
+
+
+.production-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 13px 14px 0;
+
+  font-size: 10px;
+}
+
+
+.production-row span {
+  color: #8398aa;
+}
+
+
+.production-row strong {
+  color: #e5edf4;
+
+  font-size: 11px;
+}
+
+
+.progress {
+  height: 6px;
+
+  margin: 14px;
+
+  overflow: hidden;
+
+  border-radius: 5px;
+
+  background: #243544;
+}
+
+
+.progress div {
+  height: 100%;
+
+  border-radius: 5px;
+
+  background: #2bc66b;
+
+  box-shadow:
+    0 0 7px rgba(43, 198, 107, 0.35);
+}
+
+
+.efficiency {
+  display: flex;
+
+  justify-content: space-between;
+
+  padding: 0 14px;
+
+  font-size: 10px;
+}
+
+
+.efficiency span {
+  color: #8297a9;
+}
+
+
+.efficiency strong {
+  color: #2dd06f;
+}
+
+
+/* =========================================================
+   SELECTED MACHINE CARD
+   ========================================================= */
+
+.machine-card-header {
+  min-height: 47px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 14px;
+
+  border-bottom: 1px solid #253544;
+
+  font-size: 11px;
+}
+
+
+.machine-card-header > div {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+}
+
+
+.status-dot-large {
+  width: 10px;
+  height: 10px;
+
+  border-radius: 50%;
+
+  display: inline-block;
+}
+
+
+.status-dot-large.running {
+  background: #2bd26f;
+
+  box-shadow:
+    0 0 8px rgba(43, 210, 111, 0.6);
+}
+
+
+.status-dot-large.warning {
+  background: #f3c52a;
+
+  box-shadow:
+    0 0 8px rgba(243, 197, 42, 0.5);
+}
+
+
+.status-dot-large.critical {
+  background: #ef4554;
+
+  box-shadow:
+    0 0 8px rgba(239, 69, 84, 0.6);
+}
+
+
+.status-dot-large.maintenance {
+  background: #48a7eb;
+
+  box-shadow:
+    0 0 8px rgba(72, 167, 235, 0.5);
+}
+
+
+.status-label {
+  font-size: 9px;
+
+  text-transform: capitalize;
+}
+
+
+.status-label.running {
+  color: #2bd26f;
+}
+
+
+.status-label.warning {
+  color: #f3c52a;
+}
+
+
+.status-label.critical {
+  color: #ef4554;
+}
+
+
+.status-label.maintenance {
+  color: #48a7eb;
+}
+
+
+.machine-details {
+  display: flex;
+
+  gap: 15px;
+
+  padding: 15px;
+}
+
+
+.machine-visual {
+  width: 75px;
+  height: 75px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #182836;
+
+  border: 1px solid #314657;
+
+  color: #afc2d2;
+
+  font-size: 34px;
+}
+
+
+.detail-list {
+  flex: 1;
+}
+
+
+.detail-list > div {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin-bottom: 8px;
+}
+
+
+.detail-list span {
+  color: #7e92a4;
+
+  font-size: 8px;
+}
+
+
+.detail-list strong {
+  color: #d8e3eb;
+
+  font-size: 8px;
+
+  text-align: right;
+}
+
+
+/* =========================================================
+   STATUS COLORS
+   ========================================================= */
+
+.red-text {
+  color: #ef4554 !important;
+}
+
+
+.yellow-text {
+  color: #f4c52c !important;
+}
+
+
+.green-text {
+  color: #2bd26f !important;
+}
+
+
+/* =========================================================
+   LIVE PARAMETERS
+   ========================================================= */
+
+.parameters-card {
+  padding-bottom: 12px;
+}
+
+
+.parameter {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 10px 14px;
+
+  gap: 10px;
+}
+
+
+.parameter > div:first-child {
+  min-width: 75px;
+}
+
+
+.parameter span {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #8296a8;
+
+  font-size: 8px;
+}
+
+
+.parameter strong {
+  font-size: 11px;
+}
+
+
+.mini-chart {
+  flex: 1;
+
+  overflow: hidden;
+
+  white-space: nowrap;
+
+  color: #e84956;
+
+  font-size: 18px;
+
+  letter-spacing: -2px;
+
+  opacity: 0.9;
+}
+
+
+.red-chart {
+  color: #e84956;
+}
+
+
+.parameter-row {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 10px;
+
+  padding: 8px 14px;
+}
+
+
+.parameter-row span {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #8296a8;
+
+  font-size: 8px;
+}
+
+
+.parameter-row strong {
+  font-size: 10px;
+}
+
+
+/* =========================================================
+   HEALTH SCORE
+   ========================================================= */
+
+.health-card {
+  padding-bottom: 15px;
+}
+
+
+/*
+   The health circle uses a CSS variable.
+
+   Running / Healthy = GREEN
+   Warning = GREEN by request
+   Critical = RED
+*/
+
+.health-circle {
+  --health-color: #22c55e;
+
+  width: 125px;
+  height: 125px;
+
+  margin: 12px auto 18px;
+
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  /*
+    Dark inner area
+  */
+
+  background:
+    radial-gradient(
+      circle,
+      #09141f 57%,
+      transparent 58%
+    );
+
+  /*
+    Green outer ring
+  */
+
+  border: 8px solid var(--health-color);
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+
+/*
+   HEALTHY
+*/
+
+.health-circle.health-running {
+  --health-color: #22c55e;
+}
+
+
+/*
+   WARNING
+
+   Keeping warning green because you requested
+   green for healthy and red only for critical.
+*/
+
+.health-circle.health-warning {
+  --health-color: #22c55e;
+}
+
+
+/*
+   CRITICAL
+*/
+
+.health-circle.health-critical {
+  --health-color: #ef4444;
+}
+
+
+/*
+   MAINTENANCE
+*/
+
+.health-circle.health-maintenance {
+  --health-color: #22c55e;
+}
+
+
+.health-circle > div {
+  text-align: center;
+}
+
+
+.health-circle strong {
+  display: block;
+
+  color: var(--health-color);
+
+  font-size: 24px;
+
+  line-height: 1;
+
+  font-weight: 700;
+}
+
+
+.health-circle span {
+  display: block;
+
+  margin-top: 7px;
+
+  color: var(--health-color);
+
+  font-size: 10px;
+}
+
+
+/* Failure probability */
+
+.failure {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  padding: 11px 14px;
+
+  border-top: 1px solid #263747;
+}
+
+
+.failure span {
+  color: #8195a7;
+
+  font-size: 9px;
+}
+
+
+.failure strong {
+  color: #ef4554;
+
+  font-size: 14px;
+}
+
+
+.failure-time {
+  padding: 0 14px;
+
+  color: #8397a9;
+
+  font-size: 9px;
+}
+
+
+.failure-time strong {
+  color: #ef4554;
+}
+
+
+/* =========================================================
+   MAINTENANCE RECOMMENDATION
+   ========================================================= */
+
+.recommendation {
+  padding: 14px;
+}
+
+
+.recommendation > strong {
+  display: block;
+
+  color: #e8edf2;
+
+  font-size: 10px;
+
+  line-height: 1.5;
+}
+
+
+.recommendation hr {
+  border: none;
+
+  border-top: 1px solid #263747;
+
+  margin: 13px 0;
+}
+
+
+.recommendation h4 {
+  margin: 0 0 5px;
+
+  color: #cbd7e1;
+
+  font-size: 9px;
+}
+
+
+.recommendation p {
+  margin: 0;
+
+  color: #8498aa;
+
+  font-size: 9px;
+
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   WORK ORDER BUTTON
+   ========================================================= */
+
+.work-order-button {
+  width: 100%;
+
+  margin-top: 15px;
+
+  padding: 10px 12px;
+
+  border: none;
+
+  border-radius: 4px;
+
+  background: #c93443;
+
+  color: white;
+
+  font-size: 10px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+
+.work-order-button:hover {
+  background: #e23f4e;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 4px 12px rgba(201, 52, 67, 0.3);
+}
+
+
+.work-order-button:active {
+  transform: translateY(0);
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1400px) {
+
+  .factory-dashboard {
+    grid-template-columns:
+      minmax(0, 1fr)
+      280px;
+  }
+
+  .machine {
+    width: 120px;
+    min-height: 82px;
+
+    padding: 10px;
+  }
+
+  .machine-symbol {
+    width: 35px;
+    height: 35px;
+
+    font-size: 17px;
+  }
+
+  .machine strong {
+    font-size: 12px;
+  }
+
+  .machine small {
+    font-size: 8px;
+  }
+
+  .bottom-panels {
+    grid-template-columns:
+      1fr
+      1.2fr
+      1.3fr
+      1fr
+      1.4fr;
+  }
+}
+
+
+@media (max-width: 1100px) {
+
+  .factory-dashboard {
+    grid-template-columns: 1fr;
+
+    grid-template-rows:
+      520px
+      auto
+      auto;
+  }
+
+  .alerts-panel {
+    min-height: auto;
+
+    max-height: 400px;
+  }
+
+  .bottom-panels {
+    grid-column: 1;
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+@media (max-width: 750px) {
+
+  .factory-dashboard {
+    padding: 6px;
+
+    gap: 6px;
+  }
+
+  .factory-area {
+    min-height: 500px;
+  }
+
+  .machine {
+    width: 105px;
+    min-height: 70px;
+
+    padding: 7px;
+
+    gap: 6px;
+  }
+
+  .machine-symbol {
+    width: 29px;
+    height: 29px;
+
+    font-size: 14px;
+  }
+
+  .machine strong {
+    font-size: 10px;
+  }
+
+  .machine small {
+    font-size: 7px;
+  }
+
+  .machine-light {
+    width: 8px;
+    height: 8px;
+
+    right: 5px;
+    bottom: 5px;
+  }
+
+  .factory-room {
+    font-size: 8px;
+  }
+
+  .bottom-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .selected-indicator {
+    font-size: 7px;
+  }
+}
+
+
+/* =========================================================
+   SCROLLBARS
+   ========================================================= */
+
+* {
+  scrollbar-width: thin;
+
+  scrollbar-color:
+    #34495a
+    #08131d;
+}
+
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+
+*::-webkit-scrollbar-track {
+  background: #08131d;
+}
+
+
+*::-webkit-scrollbar-thumb {
+  background: #34495a;
+
+  border-radius: 5px;
+}
+
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #496176;
+}
+/* ============================= */
+/* BLUEPRINT UPLOAD */
+/* ============================= */
+
+.blueprint-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+
+  z-index: 20;
+}
+
+.blueprint-upload-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 9px 14px;
+
+  background: #173b5a;
+  border: 1px solid #3b78a8;
+  border-radius: 6px;
+
+  color: #eaf4fb;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.blueprint-upload-button:hover {
+  background: #1d4d73;
+  border-color: #52a6ff;
+
+  box-shadow: 0 0 12px rgba(82, 166, 255, 0.2);
+}
