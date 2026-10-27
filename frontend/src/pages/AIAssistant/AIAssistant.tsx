@@ -25,6 +25,9 @@ export interface Machine {
   height?: number;
   scale?: number;
   isLocked?: boolean;
+  department?: string;
+  type?: string;
+  flankWearMm?: number;
 }
 
 export interface Alert {

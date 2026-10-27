@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from "react";
 import "./Maintenance.css";
 import type { Machine } from "../AIAssistant/AIAssistant";
+import {
+  generateDynamicMaintenanceTasks,
+  generateDynamicWorkOrders,
+} from "../../services/sensorSimulator";
 
 export interface RequiredPart {
   partNumber: string;
@@ -69,260 +73,29 @@ export const Maintenance: React.FC<MaintenanceProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Initial Maintenance Schedules with Parts Requirements
-  const [tasks, setTasks] = useState<MaintenanceTask[]>([
-    {
-      id: "MNT-2026-001",
-      machineId: "M-09",
-      machineName: "Heat Treatment",
-      location: "Production Area 2",
-      urgency: "emergency",
-      issueDiagnosis: "Critical thermal breakdown (91.8°C) and coil resistance degradation.",
-      prescribedAction: "Replace heating coil element, clean cooling lines, and replace thermocouple probe.",
-      scheduledTime: "Immediate (Breakdown in 5.1 hrs)",
-      estDowntime: "3.5 hrs",
-      assignedTechnician: "Marcus Vance (Thermal Systems)",
-      parts: [
-        {
-          partNumber: "HEAT-COIL-5000W",
-          name: "Ceramic Heating Element 5kW",
-          quantity: 2,
-          unit: "pcs",
-          inStock: 4,
-          status: "in-stock",
-        },
-        {
-          partNumber: "COOL-FLTR-800",
-          name: "High-Temp Coolant Filter Cartridge",
-          quantity: 1,
-          unit: "pcs",
-          inStock: 6,
-          status: "in-stock",
-        },
-        {
-          partNumber: "THERM-K-300",
-          name: "Type-K Thermocouple Sensor Probe",
-          quantity: 1,
-          unit: "pcs",
-          inStock: 2,
-          status: "low-stock",
-        },
-      ],
-    },
-    {
-      id: "MNT-2026-002",
-      machineId: "M-11",
-      machineName: "Packaging",
-      location: "Production Area 2",
-      urgency: "emergency",
-      issueDiagnosis: "Severe vibration (8.2 mm/s) indicating motor bearing race fatigue and belt slippage.",
-      prescribedAction: "Disassemble motor drive, press-fit replacement bearings, re-tension V-belt, and repack grease.",
-      scheduledTime: "Immediate (Breakdown in 7.3 hrs)",
-      estDowntime: "2.5 hrs",
-      assignedTechnician: "Elena Rostova (Mechanical Drive Tech)",
-      parts: [
-        {
-          partNumber: "SKF-6208-2RS",
-          name: "Heavy-Duty Sealed Deep Groove Ball Bearing",
-          quantity: 2,
-          unit: "pcs",
-          inStock: 5,
-          status: "in-stock",
-        },
-        {
-          partNumber: "BELT-OPT-V-B56",
-          name: "Industrial Reinforced V-Belt B-56",
-          quantity: 1,
-          unit: "pcs",
-          inStock: 8,
-          status: "in-stock",
-        },
-        {
-          partNumber: "LUBE-EP2-400G",
-          name: "Lithium Complex High-Load EP2 Grease",
-          quantity: 1,
-          unit: "tube",
-          inStock: 15,
-          status: "in-stock",
-        },
-      ],
-    },
-    {
-      id: "MNT-2026-003",
-      machineId: "M-04",
-      machineName: "Grinding",
-      location: "Production Area 1",
-      urgency: "preventive",
-      issueDiagnosis: "Spindle vibration harmonics (4.7 mm/s) due to wheel unbalance and abrasive glazing.",
-      prescribedAction: "Mount new vitrified grinding wheel, true with diamond dresser, and clean magnetic separator.",
-      scheduledTime: "Within 8 hours",
-      estDowntime: "1.5 hrs",
-      assignedTechnician: "David Chen (Machining Tech)",
-      parts: [
-        {
-          partNumber: "GRIND-WHL-A60",
-          name: "250mm Vitrified Grinding Wheel A60",
-          quantity: 1,
-          unit: "pcs",
-          inStock: 2,
-          status: "low-stock",
-        },
-        {
-          partNumber: "DIAM-DRESS-10",
-          name: "Single-Point Diamond Dresser Tool",
-          quantity: 1,
-          unit: "pcs",
-          inStock: 4,
-          status: "in-stock",
-        },
-        {
-          partNumber: "FLTR-COOL-M50",
-          name: "Magnetic Coolant Separator Mesh Screen",
-          quantity: 1,
-          unit: "pcs",
-          inStock: 3,
-          status: "in-stock",
-        },
-      ],
-    },
-    {
-      id: "MNT-2026-004",
-      machineId: "M-07",
-      machineName: "Welding Robot",
-      location: "Assembly Area",
-      urgency: "preventive",
-      issueDiagnosis: "Elevated welding current (15.8A) and thermal buildup on torch cooling manifold.",
-      prescribedAction: "Replace contact tip, install fresh copper gas nozzle, and service torch water seal kit.",
-      scheduledTime: "Within 36 hours",
-      estDowntime: "1.0 hr",
-      assignedTechnician: "Sarah Jenkins (Robotics & Automation)",
-      parts: [
-        {
-          partNumber: "MIG-NZL-500A",
-          name: "Copper Gas Nozzle 500A Heavy Duty",
-          quantity: 3,
-          unit: "pcs",
-          inStock: 10,
-          status: "in-stock",
-        },
-        {
-          partNumber: "CONT-TIP-12MM",
-          name: "CuCrZr Contact Tips 1.2mm",
-          quantity: 10,
-          unit: "pcs",
-          inStock: 28,
-          status: "in-stock",
-        },
-        {
-          partNumber: "PUMP-SEAL-W40",
-          name: "Water-Cooled Torch O-Ring Seal Kit",
-          quantity: 1,
-          unit: "kit",
-          inStock: 2,
-          status: "low-stock",
-        },
-      ],
-    },
-    {
-      id: "MNT-2026-005",
-      machineId: "M-01",
-      machineName: "CNC Milling",
-      location: "Production Area 1",
-      urgency: "routine",
-      issueDiagnosis: "Scheduled 250-hour lubrication cycle and axis way-wiper preventive inspection.",
-      prescribedAction: "Top up slideway reservoir with ISO VG 68 and replace polyurethane way wipers.",
-      scheduledTime: "In 14 days",
-      estDowntime: "45 mins",
-      assignedTechnician: "Routine Maintenance Crew",
-      parts: [
-        {
-          partNumber: "OIL-VG68-5L",
-          name: "Slideway Lubricant ISO VG 68",
-          quantity: 5,
-          unit: "liters",
-          inStock: 8,
-          status: "in-stock",
-        },
-        {
-          partNumber: "WIPER-WAY-SET",
-          name: "Polyurethane Way Wiper Replacement Kit",
-          quantity: 1,
-          unit: "set",
-          inStock: 3,
-          status: "in-stock",
-        },
-      ],
-    },
-  ]);
+  // User-created extra work orders
+  const [userWorkOrders, setUserWorkOrders] = useState<WorkOrder[]>([]);
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
+  const [woStatusOverrides, setWoStatusOverrides] = useState<Record<string, any>>({});
 
-  // Integrated Work Orders State
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([
-    {
-      id: "WO-1001",
-      machineId: "M-09",
-      machineName: "Heat Treatment",
-      location: "Production Area 2",
-      title: "Emergency Thermal Breakdown Repair",
-      description: "Replace heating coil element and clean cooling line due to temperature exceeding 91.8°C.",
-      priority: "critical",
-      status: "in_progress",
-      assignedTo: "Marcus Vance",
-      dueDate: "2026-10-27 16:00",
-      createdAt: "2026-10-26 11:45",
-    },
-    {
-      id: "WO-1002",
-      machineId: "M-11",
-      machineName: "Packaging",
-      location: "Production Area 2",
-      title: "Spindle Bearing Replacement & Belt Alignment",
-      description: "Critical vibration (8.2 mm/s). Disassemble drive housing, press new SKF bearings, and grease.",
-      priority: "critical",
-      status: "assigned",
-      assignedTo: "Elena Rostova",
-      dueDate: "2026-10-27 18:00",
-      createdAt: "2026-10-26 11:50",
-    },
-    {
-      id: "WO-1003",
-      machineId: "M-07",
-      machineName: "Welding Robot",
-      location: "Assembly Area",
-      title: "Torch Nozzle & Water Seal Overhaul",
-      description: "Overcurrent spike (15.8A). Replace contact tips, torch gas nozzle, and test cooling flow.",
-      priority: "high",
-      status: "open",
-      assignedTo: "Sarah Jenkins",
-      dueDate: "2026-10-28 12:00",
-      createdAt: "2026-10-26 13:10",
-    },
-    {
-      id: "WO-1004",
-      machineId: "M-04",
-      machineName: "Grinding",
-      location: "Production Area 1",
-      title: "Grinding Wheel Balance & Dressing",
-      description: "Preventive maintenance on abrasive wheel to eliminate 4.7 mm/s harmonic vibration.",
-      priority: "medium",
-      status: "open",
-      assignedTo: "David Chen",
-      dueDate: "2026-10-29 10:00",
-      createdAt: "2026-10-26 14:00",
-    },
-    {
-      id: "WO-1005",
-      machineId: "M-21",
-      machineName: "Air Compressor",
-      location: "Facility Utility",
-      title: "Intake Filter & Oil Change",
-      description: "Scheduled 500-hour compressor oil drain and air intake filter cartridge renewal.",
-      priority: "low",
-      status: "completed",
-      assignedTo: "Routine Maintenance Crew",
-      dueDate: "2026-10-26 09:00",
-      createdAt: "2026-10-25 08:30",
-    },
-  ]);
+  // Dynamic Maintenance Tasks derived strictly from current layout equipment
+  const tasks: MaintenanceTask[] = useMemo(() => {
+    const dynamic = generateDynamicMaintenanceTasks(machines);
+    return dynamic.map((t) => ({
+      ...t,
+      urgency: completedTaskIds.has(t.id) ? ("completed" as const) : t.urgency,
+    }));
+  }, [machines, completedTaskIds]);
+
+  // Dynamic Work Orders derived from current layout equipment + user-submitted orders
+  const workOrders: WorkOrder[] = useMemo(() => {
+    const dynamic = generateDynamicWorkOrders(machines);
+    const combined = [...userWorkOrders, ...dynamic];
+    return combined.map((w) => ({
+      ...w,
+      status: woStatusOverrides[w.id] || w.status,
+    }));
+  }, [machines, userWorkOrders, woStatusOverrides]);
 
   // KPI Calculations
   const emergencyCount = tasks.filter((t) => t.urgency === "emergency").length;
@@ -371,9 +144,7 @@ export const Maintenance: React.FC<MaintenanceProps> = ({
 
   // Work Order Status Change Handler
     const handleCompleteServiceTask = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, urgency: "completed" } : t))
-    );
+    setCompletedTaskIds((prev) => new Set(prev).add(taskId));
     showToast(`Service task #${taskId} marked as COMPLETED.`);
   };
 
@@ -381,9 +152,7 @@ export const Maintenance: React.FC<MaintenanceProps> = ({
     woId: string,
     newStatus: "open" | "assigned" | "in_progress" | "completed" | "cancelled"
   ) => {
-    setWorkOrders((prev) =>
-      prev.map((w) => (w.id === woId ? { ...w, status: newStatus } : w))
-    );
+    setWoStatusOverrides((prev) => ({ ...prev, [woId]: newStatus }));
     showToast(`Work Order #${woId} status updated to: ${newStatus.toUpperCase()}`);
   };
 
@@ -412,7 +181,7 @@ export const Maintenance: React.FC<MaintenanceProps> = ({
       createdAt: new Date().toISOString().slice(0, 16).replace("T", " "),
     };
 
-    setWorkOrders((prev) => [newTicket, ...prev]);
+    setUserWorkOrders((prev) => [newTicket, ...prev]);
     setIsNewWoModalOpen(false);
     setNewWoTitle("");
     setNewWoDesc("");

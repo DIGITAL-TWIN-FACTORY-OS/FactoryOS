@@ -1,5 +1,13 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import "./App.css";
+import {
+  simulateMachineTick,
+  overrideMachineSensor,
+  resetMachineMaintenance,
+  injectMachineFault,
+  createSimulationCopy,
+  generateDynamicAlerts,
+} from "./services/sensorSimulator";
 import Layout from "./components/Layout/Layout";
 import Login, { type UserRole } from "./components/Login/Login";
 import AIAssistant from "./pages/AIAssistant/AIAssistant";
@@ -15,7 +23,9 @@ import {
   updateMachineInDb,
   deleteMachineFromDb,
   seedNasaMachinesToDb,
-  SUPABASE_PROJECT_ID,
+  fetchLayoutPresetsFromDb,
+  saveLayoutPresetToDb,
+  type LayoutPreset,
 } from "./services/supabaseService";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import { supabase } from "./lib/supabaseClient";
@@ -30,45 +40,7 @@ interface Alert {
   type: "critical" | "warning" | "info";
 }
 
-// Dummy machines removed. Live machine data connects directly to Supabase database (bsiazqbjrwaxgpzxhhqh).
-const alerts: Alert[] = [
-  {
-    machine: "M-09 Heat Treatment",
-    message: "Temperature exceeded limit",
-    time: "11:40 AM",
-    type: "critical",
-  },
-  {
-    machine: "M-11 Packaging",
-    message: "Vibration level high",
-    time: "11:38 AM",
-    type: "critical",
-  },
-  {
-    machine: "M-07 Welding Robot",
-    message: "High current detected",
-    time: "11:32 AM",
-    type: "warning",
-  },
-  {
-    machine: "M-04 Grinding",
-    message: "Maintenance due in 8 hrs",
-    time: "11:20 AM",
-    type: "warning",
-  },
-  {
-    machine: "M-21 Air Compressor",
-    message: "Scheduled maintenance",
-    time: "10:55 AM",
-    type: "info",
-  },
-  {
-    machine: "M-15 Conveyor",
-    message: "Speed fluctuation",
-    time: "10:40 AM",
-    type: "warning",
-  },
-];
+// Dynamic alerts generated strictly from layout machines via sensorSimulator
 
 function getStatusLabel(status: MachineStatus) {
   if (status === "running") return "Healthy";
@@ -106,12 +78,141 @@ function App() {
 
   // Live Machine list fetched from Supabase database
   const [machineList, setMachineList] = useState<Machine[]>([]);
-  const [isDbLoading, setIsDbLoading] = useState(true);
+  const [timeMultiplier, setTimeMultiplier] = useState<number>(1);
+  const [isSimPanelOpen, setIsSimPanelOpen] = useState<boolean>(false);
+  const [isAlertsPanelOpen, setIsAlertsPanelOpen] = useState<boolean>(true);
+  const [quickInspectorMachineId, setQuickInspectorMachineId] = useState<string | null>(null);
 
+  // Factory Room & Layout Preset Configurations State with Database Persistence
+  const [layoutPresets, setLayoutPresets] = useState<LayoutPreset[]>([]);
+  const [currentPresetId, setCurrentPresetId] = useState<string>("preset-all");
+
+  useEffect(() => {
+    fetchLayoutPresetsFromDb()
+      .then((presets) => setLayoutPresets(presets))
+      .catch((err) => console.warn("Failed to load layout presets:", err));
+  }, []);
+
+  const handleSwitchPreset = (presetId: string) => {
+    setCurrentPresetId(presetId);
+    const targetPreset = layoutPresets.find((p) => p.id === presetId);
+    if (!targetPreset) return;
+
+    setMachineList((prev) =>
+      prev.map((m) => {
+        const savedPos = targetPreset.positions[m.id];
+        if (savedPos) {
+          return {
+            ...m,
+            x: savedPos.x,
+            y: savedPos.y,
+            width: savedPos.width ?? m.width,
+            height: savedPos.height ?? m.height,
+            isLocked: savedPos.isLocked ?? m.isLocked,
+          };
+        }
+        return m;
+      })
+    );
+  };
+
+  const handleSaveCurrentPreset = async () => {
+    const name = window.prompt("Enter name for this factory / room layout configuration:", "Custom Bay Layout");
+    if (!name || !name.trim()) return;
+
+    const newPresetId = `preset-${Date.now().toString().slice(-6)}`;
+    const positions: Record<string, any> = {};
+    machineList.forEach((m) => {
+      positions[m.id] = {
+        x: m.x,
+        y: m.y,
+        width: m.width,
+        height: m.height,
+        isLocked: m.isLocked,
+      };
+    });
+
+    const newPreset: LayoutPreset = {
+      id: newPresetId,
+      name: `💾 ${name.trim()}`,
+      description: `Configuration saved on ${new Date().toLocaleDateString("en-GB")}`,
+      roomFilter: "custom",
+      positions,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    await saveLayoutPresetToDb(newPreset);
+    setLayoutPresets((prev) => [...prev, newPreset]);
+    setCurrentPresetId(newPresetId);
+  };
+
+  // Dynamic real alerts derived strictly from equipment currently on layout
+  const alerts: Alert[] = useMemo(() => {
+    return generateDynamicAlerts(machineList).map((d) => ({
+      machine: d.machine,
+      message: d.message,
+      time: d.time,
+      type: d.type,
+    }));
+  }, [machineList]);
+
+  // Time Acceleration & Degradation Simulation Loop
+  useEffect(() => {
+    if (timeMultiplier === 0) return;
+    const interval = setInterval(() => {
+      setMachineList((prev) =>
+        prev.map((m) => simulateMachineTick(m, 1, timeMultiplier))
+      );
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeMultiplier]);
+
+  const handleSensorSliderChange = (
+    machineId: string,
+    sensor: "flankWearMm" | "temperature" | "vibration" | "current" | "speed",
+    val: number
+  ) => {
+    overrideMachineSensor(machineId, { [sensor]: val });
+    setMachineList((prev) =>
+      prev.map((m) => {
+        if (m.id !== machineId) return m;
+        const modified = { ...m, [sensor]: val };
+        return simulateMachineTick(modified, 0, 1);
+      })
+    );
+  };
+
+  const handleInjectFault = (
+    machineId: string,
+    faultType: "tool_wear" | "thermal_choke" | "bearing_fatigue" | "overcurrent"
+  ) => {
+    const updates = injectMachineFault(machineId, faultType);
+    setMachineList((prev) =>
+      prev.map((m) => (m.id === machineId ? { ...m, ...updates } : m))
+    );
+  };
+
+  const handleResetMaintenance = (machineId: string) => {
+    const restored = resetMachineMaintenance(machineId);
+    setMachineList((prev) =>
+      prev.map((m) => (m.id === machineId ? { ...m, ...restored } : m))
+    );
+    updateMachineInDb(machineId, restored).catch((e) => console.warn("Supabase update:", e));
+  };
+
+  const handleCloneMachine = async (machineId: string) => {
+    const base = machineList.find((m) => m.id === machineId);
+    if (!base) return;
+    const count = machineList.filter((m) => m.id.startsWith(base.id)).length;
+    const twinPartial = createSimulationCopy(base, count + 1);
+    const saved = await addMachineToDb(twinPartial);
+    setMachineList((prev) => [saved, ...prev]);
+    setSelectedMachineId(saved.id);
+  };
   // Fetch machines from Supabase on mount
   useEffect(() => {
     async function loadMachines() {
-      setIsDbLoading(true);
       try {
         const dbMachines = await fetchMachinesFromDb();
         setMachineList(dbMachines);
@@ -120,8 +221,6 @@ function App() {
         }
       } catch (err) {
         console.error("Failed to load machines from Supabase database:", err);
-      } finally {
-        setIsDbLoading(false);
       }
     }
     loadMachines();
@@ -321,6 +420,15 @@ function App() {
   const [blueprintOpacity, setBlueprintOpacity] = useState(0.65);
   const [blueprintFit, setBlueprintFit] = useState<"contain" | "cover">("contain");
   const [showAdjustPanel, setShowAdjustPanel] = useState(false);
+  const [isBottomPanelMinimized, setIsBottomPanelMinimized] = useState(false);
+
+  // Auto-fit blueprint maintaining exact aspect ratio without distortion
+  const handleAutoFitBlueprint = () => {
+    setBlueprintScale(1);
+    setBlueprintOffsetX(0);
+    setBlueprintOffsetY(0);
+    setBlueprintFit("contain");
+  };
 
   const handleBlueprintUpload = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -341,9 +449,10 @@ function App() {
       setBlueprintScale(1);
       setBlueprintOffsetX(0);
       setBlueprintOffsetY(0);
-      setBlueprintOpacity(0.65);
+      setBlueprintFit("contain");
+      setBlueprintOpacity(0.70);
       setShowBlueprint(true);
-      setShowAdjustPanel(true);
+      setShowAdjustPanel(false);
     };
     reader.readAsDataURL(file);
   };
@@ -692,15 +801,12 @@ function App() {
   };
 
   const handleSeedNasaMachines = async () => {
-    setIsDbLoading(true);
     try {
       const seeded = await seedNasaMachinesToDb();
       setMachineList(seeded);
       if (seeded.length > 0) setSelectedMachineId(seeded[0].id);
     } catch (err) {
       console.error("Failed to seed NASA machines to Supabase:", err);
-    } finally {
-      setIsDbLoading(false);
     }
   };
 
@@ -836,6 +942,7 @@ function App() {
     <Layout
       userRole={userRole}
       userName={userName}
+      alerts={alerts}
       currentPage={currentPage}
       onNavigate={setCurrentPage}
       onSignOut={async () => {
@@ -885,7 +992,8 @@ function App() {
           onNavigate={setCurrentPage}
         />
       ) : (
-        <div className="factory-dashboard">
+        <div className={`factory-dashboard ${!isAlertsPanelOpen ? "alerts-collapsed" : ""}`}>
+
           {/* FACTORY FLOOR & MAP */}
           <section
             className={`factory-area ${isLayoutMode ? "layout-mode-active" : ""}`}
@@ -893,6 +1001,233 @@ function App() {
             onPointerMove={handleFloorPointerMove}
             onPointerUp={handleFloorPointerUp}
           >
+            {/* TIME ACCELERATION & DIGITAL TWIN SIMULATION DOCK */}
+            {isSimPanelOpen && (
+              <div className="sim-control-bar" onClick={(e) => e.stopPropagation()}>
+                <div className="sim-speed-section">
+                  <div className="sim-badge">
+                    <span className={`sim-dot ${timeMultiplier > 0 ? "running" : "paused"}`}></span>
+                    <strong>NASA MC-510V SIMULATOR</strong>
+                    <span className="sim-multiplier-label">
+                      {timeMultiplier === 0 ? "PAUSED" : `${timeMultiplier}x ACCELERATION`}
+                    </span>
+                  </div>
+
+                  <div className="sim-speed-buttons">
+                    <button
+                      type="button"
+                      className="btn-sim-minimize-drawer"
+                      onClick={() => setIsSimPanelOpen(false)}
+                      title="Minimize simulation drawer (Simulation continues in background)"
+                    >
+                      ▼ Minimize Settings
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-sim-speed ${timeMultiplier === 0 ? "active" : ""}`}
+                      onClick={() => setTimeMultiplier(0)}
+                      title="Pause wear simulation"
+                    >
+                      ⏸ Pause
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-sim-speed ${timeMultiplier === 1 ? "active" : ""}`}
+                      onClick={() => setTimeMultiplier(1)}
+                      title="1s real = 1s simulated"
+                    >
+                      1x (Realtime)
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-sim-speed ${timeMultiplier === 5 ? "active" : ""}`}
+                      onClick={() => setTimeMultiplier(5)}
+                      title="5x acceleration"
+                    >
+                      5x
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-sim-speed ${timeMultiplier === 10 ? "active" : ""}`}
+                      onClick={() => setTimeMultiplier(10)}
+                      title="10x acceleration"
+                    >
+                      10x
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-sim-speed ${timeMultiplier === 60 ? "active" : ""}`}
+                      onClick={() => setTimeMultiplier(60)}
+                      title="Rapid Wear Demo: 1s real = 1min cutting wear"
+                    >
+                      60x (1s = 1m)
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-sim-speed ${timeMultiplier === 360 ? "active" : ""}`}
+                      onClick={() => setTimeMultiplier(360)}
+                      title="Full Shift Demo: 1s real = 6min cutting wear"
+                    >
+                      360x (1s = 6m)
+                    </button>
+                  </div>
+                </div>
+
+                {selectedMachine && selectedMachine.id !== "NO-MACHINE" && (
+                  <div className="sim-machine-controls">
+                    <div className="sim-machine-header">
+                      <div className="sim-machine-title">
+                        <strong>{selectedMachine.id}</strong> {selectedMachine.name}
+                        <span className={`sim-status-pill ${selectedMachine.status}`}>
+                          {selectedMachine.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="sim-machine-badges">
+                        <span className="sim-vb-pill">
+                          Flank Wear VB: <strong>{(selectedMachine.flankWearMm ?? 0.08).toFixed(3)} mm</strong>
+                        </span>
+                        <span className="sim-rul-pill">
+                          RUL: <strong>{selectedMachine.failureTime}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="sim-sliders-grid">
+                      <div className="sim-slider-group">
+                        <div className="sim-slider-label">
+                          <span>Tool Flank Wear (VB)</span>
+                          <strong>{(selectedMachine.flankWearMm ?? 0.08).toFixed(3)} mm</strong>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.02"
+                          max="0.60"
+                          step="0.01"
+                          value={selectedMachine.flankWearMm ?? 0.08}
+                          onChange={(e) => handleSensorSliderChange(selectedMachine.id, "flankWearMm", parseFloat(e.target.value))}
+                        />
+                      </div>
+
+                      <div className="sim-slider-group">
+                        <div className="sim-slider-label">
+                          <span>Process Temperature</span>
+                          <strong>{selectedMachine.temperature}°C</strong>
+                        </div>
+                        <input
+                          type="range"
+                          min="35"
+                          max="95"
+                          step="0.5"
+                          value={selectedMachine.temperature}
+                          onChange={(e) => handleSensorSliderChange(selectedMachine.id, "temperature", parseFloat(e.target.value))}
+                        />
+                      </div>
+
+                      <div className="sim-slider-group">
+                        <div className="sim-slider-label">
+                          <span>Vibration RMS</span>
+                          <strong>{selectedMachine.vibration} mm/s</strong>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="7.0"
+                          step="0.1"
+                          value={selectedMachine.vibration}
+                          onChange={(e) => handleSensorSliderChange(selectedMachine.id, "vibration", parseFloat(e.target.value))}
+                        />
+                      </div>
+
+                      <div className="sim-slider-group">
+                        <div className="sim-slider-label">
+                          <span>Spindle Motor Current</span>
+                          <strong>{selectedMachine.current} A</strong>
+                        </div>
+                        <input
+                          type="range"
+                          min="4.0"
+                          max="18.0"
+                          step="0.2"
+                          value={selectedMachine.current}
+                          onChange={(e) => handleSensorSliderChange(selectedMachine.id, "current", parseFloat(e.target.value))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="sim-actions-bar">
+                      <div className="sim-fault-triggers">
+                        <span className="sim-section-tag">Inject Fault:</span>
+                        <button
+                          type="button"
+                          className="btn-sim-fault"
+                          onClick={() => handleInjectFault(selectedMachine.id, "tool_wear")}
+                          title="Tool flank wear VB jumps to 0.48mm"
+                        >
+                          ⚠️ Tool Wear
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-sim-fault"
+                          onClick={() => handleInjectFault(selectedMachine.id, "thermal_choke")}
+                          title="Simulate coolant failure & thermal buildup"
+                        >
+                          ♨ Thermal Choke
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-sim-fault"
+                          onClick={() => handleInjectFault(selectedMachine.id, "bearing_fatigue")}
+                          title="Simulate bearing race spalling & vibration"
+                        >
+                          🌀 Bearing Damage
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-sim-fault"
+                          onClick={() => handleInjectFault(selectedMachine.id, "overcurrent")}
+                          title="Heavy cutting overcurrent spike"
+                        >
+                          ⚡ Spindle Overload
+                        </button>
+                      </div>
+
+                      <div className="sim-maint-triggers">
+                        <button
+                          type="button"
+                          className="btn-sim-clone"
+                          onClick={() => handleCloneMachine(selectedMachine.id)}
+                          title="Create twin machine to test stress conditions side-by-side"
+                        >
+                          ⎘ Clone Twin
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-sim-service-reset"
+                          onClick={() => handleResetMaintenance(selectedMachine.id)}
+                          title="Complete tool change & overhaul (Restores 98% Health)"
+                        >
+                          🔧 Tool Change & Reset
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Floating Background Simulation Indicator when drawer is minimized */}
+            {timeMultiplier > 0 && !isSimPanelOpen && (
+              <div
+                className="sim-floating-pill"
+                onClick={() => setIsSimPanelOpen(true)}
+                title="Simulation active in background. Click to open controls drawer."
+              >
+                <span className="sim-dot running"></span>
+                <span>Simulating: <strong>{timeMultiplier}x</strong></span>
+                <span className="sim-pill-btn">⚙ Controls</span>
+              </div>
+            )}
+
             {/* Blueprint Background */}
             {blueprint && showBlueprint && (
               <img
@@ -916,36 +1251,6 @@ function App() {
                 {isLayoutMode
                   ? "Drag any machine to move. Drag bottom-right corner ⤡ to resize."
                   : "Floor is locked. Click 'Locked (View Mode)' in toolbar to enable moving & resizing."}
-              </div>
-            )}
-
-            {/* Empty State when no machines exist in Supabase database */}
-            {machineList.length === 0 && !isDbLoading && (
-              <div className="supabase-empty-floor">
-                <div className="empty-floor-badge">
-                  <span className="live-dot green"></span>
-                  <span>SUPABASE CONNECTED: {SUPABASE_PROJECT_ID}</span>
-                </div>
-                <h3>No Equipment Registered in Database</h3>
-                <p>
-                  The Supabase <code>machines</code> table currently contains 0 records. Add equipment from the catalog or seed the digital twin with the NASA Matsuura MC-510V milling equipment.
-                </p>
-                <div className="empty-floor-actions">
-                  <button
-                    type="button"
-                    className="btn-empty-add"
-                    onClick={() => setShowAddMachineModal(true)}
-                  >
-                    ＋ Add New Machine to Database
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-empty-seed"
-                    onClick={handleSeedNasaMachines}
-                  >
-                    📥 Seed NASA MC-510V Digital Twin Equipment
-                  </button>
-                </div>
               </div>
             )}
 
@@ -981,6 +1286,8 @@ function App() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedMachineId(machine.id);
+                    setIsBottomPanelMinimized(false);
+                    setQuickInspectorMachineId((prev) => (prev === machine.id ? null : machine.id));
                   }}
                   title={
                     isLayoutMode
@@ -1025,6 +1332,75 @@ function App() {
                       {!isDashboard && machine.isLocked && " • 🔒 Locked"}
                       {isDragging && " • Moving"}
                       {isResizing && " • Resizing"}
+                    </div>
+                  )}
+
+                  {/* Floating Quick Popout Telemetry Menu */}
+                  {quickInspectorMachineId === machine.id && (
+                    <div className="machine-quick-popout" onClick={(e) => e.stopPropagation()}>
+                      <div className="popout-header">
+                        <div className="popout-title">
+                          <span className={`critical-dot ${machine.status}`}></span>
+                          <strong>{machine.id}</strong> {machine.name}
+                        </div>
+                        <button
+                          type="button"
+                          className="popout-close-btn"
+                          onClick={() => setQuickInspectorMachineId(null)}
+                          title="Close popout inspector"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="popout-telemetry-grid">
+                        <div className="popout-telemetry-item">
+                          <span>Temperature</span>
+                          <strong className={machine.temperature > 65 ? "yellow-text" : "green-text"}>{machine.temperature}°C</strong>
+                        </div>
+                        <div className="popout-telemetry-item">
+                          <span>Vibration</span>
+                          <strong className={machine.vibration > 3.0 ? "yellow-text" : "green-text"}>{machine.vibration} mm/s</strong>
+                        </div>
+                        <div className="popout-telemetry-item">
+                          <span>Current</span>
+                          <strong>{machine.current} A</strong>
+                        </div>
+                        <div className="popout-telemetry-item">
+                          <span>Tool VB</span>
+                          <strong className={(machine.flankWearMm ?? 0.08) >= 0.40 ? "red-text" : "green-text"}>
+                            {(machine.flankWearMm ?? 0.08).toFixed(3)} mm
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className="popout-health-row">
+                        <span className={`popout-health-badge ${machine.status}`}>
+                          Health: <strong>{machine.health}%</strong>
+                        </span>
+                        <span className="popout-rul-badge">
+                          RUL: <strong>{machine.failureTime}</strong>
+                        </span>
+                      </div>
+
+                      <div className="popout-actions-row">
+                        <button
+                          type="button"
+                          className="btn-popout-service"
+                          onClick={() => handleResetMaintenance(machine.id)}
+                          title="Quick tool replacement and service"
+                        >
+                          🔧 Reset Wear
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-popout-clone"
+                          onClick={() => handleCloneMachine(machine.id)}
+                          title="Clone twin machine for simulation"
+                        >
+                          ⎘ Clone Twin
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1195,6 +1571,14 @@ function App() {
                     <div className="align-dock-tools">
                       <button
                         type="button"
+                        onClick={() => handleCloneMachine(selectedMachine.id)}
+                        title="Duplicate machine to test different sensor scenarios"
+                        disabled={selectedMachine.isLocked}
+                      >
+                        ⎘ Clone Twin
+                      </button>
+                      <button
+                        type="button"
                         onClick={handleSnapToGrid}
                         title="Snap to 5% Floor Grid"
                         disabled={selectedMachine.isLocked}
@@ -1258,6 +1642,56 @@ function App() {
               </div>
 
               <div className="factory-toolbar-actions">
+                {/* Simulation Settings Drawer Toggle Button (Keeps Simulation Running) */}
+                <button
+                  type="button"
+                  className={`btn-toolbar-sim ${timeMultiplier > 0 ? "active" : ""}`}
+                  onClick={() => setIsSimPanelOpen((v) => !v)}
+                  title="Toggle Simulation Settings Drawer (Simulation continues running in background)"
+                >
+                  <span className="sim-pulse-icon">{timeMultiplier > 0 ? "⚡" : "⏸"}</span>
+                  <span>Sim: {timeMultiplier === 0 ? "PAUSED" : `${timeMultiplier}x`} {isSimPanelOpen ? "▲" : "▼"}</span>
+                </button>
+
+                {/* Factory Room & Layout Configuration Selector with Database Persistence */}
+                <div className="toolbar-preset-selector">
+                  <span className="preset-selector-icon">🏛</span>
+                  <select
+                    className="preset-selector-dropdown"
+                    value={currentPresetId}
+                    onChange={(e) => handleSwitchPreset(e.target.value)}
+                    title="Switch between different factory room & bay layout configurations"
+                  >
+                    {layoutPresets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {!isDashboard && isAdmin && (
+                    <button
+                      type="button"
+                      className="btn-save-preset-toolbar"
+                      onClick={handleSaveCurrentPreset}
+                      title="Save current layout positions as a new persistent preset"
+                    >
+                      ＋ Save Preset
+                    </button>
+                  )}
+                </div>
+
+                {/* Collapsible Alerts Panel Toggle Button */}
+                <button
+                  type="button"
+                  className={`btn-toolbar-alerts ${isAlertsPanelOpen ? "active" : ""}`}
+                  onClick={() => setIsAlertsPanelOpen((v) => !v)}
+                  title={isAlertsPanelOpen ? "Collapse alerts panel to expand blueprint canvas" : "Show live condition alerts"}
+                >
+                  <span>🔔</span>
+                  <span>Alerts ({alerts.length})</span>
+                </button>
+
                 {/* Dashboard View Indicator */}
                 {isDashboard && (
                   <div className="dashboard-live-indicator">
@@ -1293,15 +1727,28 @@ function App() {
 
                 {/* Plus Sign Add Machine Button - Admin Only */}
                 {!isDashboard && isAdmin && (
-                  <button
-                    type="button"
-                    className="btn-add-machine-toolbar"
-                    onClick={() => setShowAddMachineModal(true)}
-                    title="Search & Add Machines / Equipment to Layout"
-                  >
-                    <span className="btn-add-plus">＋</span>
-                    <span>Add Machine</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn-add-machine-toolbar"
+                      onClick={() => setShowAddMachineModal(true)}
+                      title="Search & Add Machines / Equipment to Layout"
+                    >
+                      <span className="btn-add-plus">＋</span>
+                      <span>Add Machine</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn-add-machine-toolbar"
+                      style={{ background: "rgba(16, 185, 129, 0.14)", borderColor: "rgba(16, 185, 129, 0.4)", color: "#10b981" }}
+                      onClick={handleSeedNasaMachines}
+                      title="Seed NASA MC-510V Digital Twin equipment into floor"
+                    >
+                      <span>📥</span>
+                      <span>Seed NASA Twin</span>
+                    </button>
+                  </>
                 )}
 
                 {/* Blueprint Controls - Admin Only on Factory Layout */}
@@ -1315,6 +1762,16 @@ function App() {
                           onClick={() => setShowBlueprint((current) => !current)}
                         >
                           {showBlueprint ? "Hide Blueprint" : "Show Blueprint"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="blueprint-action-button btn-auto-fit-blueprint"
+                          style={{ borderColor: "#38bdf8", color: "#38bdf8", background: "rgba(56, 189, 248, 0.12)" }}
+                          onClick={handleAutoFitBlueprint}
+                          title="Auto-fit blueprint to layout floor preserving original aspect ratio"
+                        >
+                          ⛶ Auto-Fit
                         </button>
 
                         <div className="blueprint-scale-controls">
@@ -1409,45 +1866,6 @@ function App() {
                 )}
               </div>
             </div>
-
-            {/* Map Controls - Hidden in Dashboard */}
-            {!isDashboard && (
-              <div className="map-controls">
-                <button
-                  type="button"
-                  title="Zoom In (+10%)"
-                  onClick={() =>
-                    setBlueprintScale((s) =>
-                      Math.min(3, +(s + 0.1).toFixed(2))
-                    )
-                  }
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  title="Zoom Out (-10%)"
-                  onClick={() =>
-                    setBlueprintScale((s) =>
-                      Math.max(0.2, +(s - 0.1).toFixed(2))
-                    )
-                  }
-                >
-                  −
-                </button>
-                <button
-                  type="button"
-                  title="Reset Position & Zoom"
-                  onClick={() => {
-                    setBlueprintScale(1);
-                    setBlueprintOffsetX(0);
-                    setBlueprintOffsetY(0);
-                  }}
-                >
-                  ⛶
-                </button>
-              </div>
-            )}
 
             {/* Blueprint Adjustment Drawer - Hidden in Dashboard */}
             {!isDashboard && blueprint && showBlueprint && showAdjustPanel && (
@@ -1648,294 +2066,282 @@ function App() {
               </div>
             )}
 
+            {/* Expand Alerts Tab when panel is collapsed */}
+            {!isAlertsPanelOpen && (
+              <button
+                type="button"
+                className="floor-alerts-tab"
+                onClick={() => setIsAlertsPanelOpen(true)}
+                title="Expand live alerts panel"
+              >
+                <span>🔔</span>
+                <span>Alerts ({alerts.length})</span>
+                <span className="tab-arrow">◀</span>
+              </button>
+            )}
+
             <div className="live-map-label">
               <span></span>
               Live Factory View
             </div>
           </section>
 
-          {/* ALERT PANEL */}
-          <section className="alerts-panel">
-            <div className="panel-heading">
-              <strong>Live Alerts ({alerts.length})</strong>
-              <span
-                style={{ cursor: "pointer", color: "#00b4d8" }}
-                onClick={() => setCurrentPage("Alerts")}
-              >
-                View All
-              </span>
-            </div>
-
-            {alerts.map((alert, index) => (
-              <div className="alert-item" key={index}>
-                <div className={`alert-icon ${alert.type}`}>
-                  {alert.type === "critical"
-                    ? "♨"
-                    : alert.type === "warning"
-                    ? "⚠"
-                    : "●"}
-                </div>
-
-                <div className="alert-content">
-                  <div className="alert-title-row">
-                    <strong>{alert.machine}</strong>
-                    <small>{alert.time}</small>
-                  </div>
-
-                  <p>{alert.message}</p>
-                </div>
-              </div>
-            ))}
-          </section>
-
-          {/* BOTTOM PANELS */}
-          <section className="bottom-panels">
-            {/* Production */}
-            <div className="info-card production-card">
-              <h3>Production</h3>
-
-              <div className="production-row">
-                <span>Today</span>
-                <strong>2,481 Units</strong>
-              </div>
-
-              <div className="production-row">
-                <span>Target</span>
-                <strong>3,500 Units</strong>
-              </div>
-
-              <div className="progress">
-                <div style={{ width: "71%" }}></div>
-              </div>
-
-              <div className="efficiency">
-                <span>Efficiency</span>
-                <strong>71%</strong>
-              </div>
-
-              <div className="machine-overview">
-                <div>
-                  <span className="overview-dot green"></span>
-                  Running
-                  <strong>{healthyMachines}</strong>
-                </div>
-
-                <div>
-                  <span className="overview-dot yellow"></span>
-                  Warning
-                  <strong>{warningMachines}</strong>
-                </div>
-
-                <div>
-                  <span className="overview-dot red"></span>
-                  Critical
-                  <strong>{criticalMachines}</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Selected Machine */}
-            <div className="info-card selected-machine">
-              <div className="machine-card-header">
-                <div>
+          {/* ALERT PANEL (Collapsible to expand blueprint) */}
+          {isAlertsPanelOpen && (
+            <section className="alerts-panel">
+              <div className="panel-heading">
+                <strong>Live Alerts ({alerts.length})</strong>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <span
-                    className={`critical-dot ${selectedMachine.status}`}
-                  ></span>
-
-                  {selectedMachine.id} {selectedMachine.name}
+                    style={{ cursor: "pointer", color: "#38bdf8", fontSize: "12px", fontWeight: 600 }}
+                    onClick={() => setCurrentPage("Alerts")}
+                  >
+                    View All →
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-dock-minimize"
+                    onClick={() => setIsAlertsPanelOpen(false)}
+                    title="Minimize alerts panel to maximize floor blueprint canvas"
+                  >
+                    ⇥ Minimize
+                  </button>
                 </div>
+              </div>
 
-                <span className={`status-label ${selectedMachine.status}`}>
-                  {getStatusLabel(selectedMachine.status)}
+              {alerts.length === 0 ? (
+                <div className="alerts-empty-dock">
+                  <span className="alerts-empty-icon">✓</span>
+                  <strong>Zero Active Alerts</strong>
+                  <p>All machines currently running nominal telemetry.</p>
+                </div>
+              ) : (
+                alerts.map((alert, index) => (
+                  <div className="alert-item" key={index}>
+                    <div className={`alert-icon ${alert.type}`}>
+                      {alert.type === "critical"
+                        ? "♨"
+                        : alert.type === "warning"
+                        ? "⚠"
+                        : "●"}
+                    </div>
+
+                    <div className="alert-content">
+                      <div className="alert-title-row">
+                        <strong>{alert.machine}</strong>
+                        <small>{alert.time}</small>
+                      </div>
+
+                      <p>{alert.message}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </section>
+          )}
+
+          {/* BOTTOM PANELS (Minimizable & Streamlined) */}
+          {isBottomPanelMinimized ? (
+            <section className="bottom-panel-collapsed">
+              <div className="collapsed-left">
+                <span className={`collapsed-dot ${selectedMachine.status}`}></span>
+                <strong>{selectedMachine.id}</strong>
+                <span className="collapsed-name">{selectedMachine.name}</span>
+                <span className={`collapsed-health-tag ${healthClass}`}>{selectedMachine.health}% Health</span>
+                <span className="collapsed-sensor-strip">
+                  Temp: <strong>{selectedMachine.temperature}°C</strong> • Vib: <strong>{selectedMachine.vibration} mm/s</strong> • Current: <strong>{selectedMachine.current}A</strong> • Tool VB: <strong>{(selectedMachine.flankWearMm ?? 0.08).toFixed(3)}mm</strong>
                 </span>
               </div>
-
-              <div className="machine-details">
-                <div className="machine-visual">
-                  <span>{getMachineIcon(selectedMachine.name)}</span>
+              <button
+                type="button"
+                className="btn-toggle-bottom"
+                onClick={() => setIsBottomPanelMinimized(false)}
+                title="Expand Telemetry Dashboard"
+              >
+                ▲ Expand Telemetry
+              </button>
+            </section>
+          ) : (
+            <section className="bottom-panels">
+              <div className="bottom-panels-header">
+                <div className="bottom-panels-title">
+                  <span className="bottom-live-indicator">●</span>
+                  <strong>TELEMETRY & MACHINE INTELLIGENCE</strong>
                 </div>
-
-                <div className="detail-list">
-                  <div>
-                    <span>Machine ID</span>
-                    <strong>{selectedMachine.id}</strong>
-                  </div>
-
-                  <div>
-                    <span>Status</span>
-                    <strong className={`status-text ${selectedMachine.status}`}>
-                      {getStatusLabel(selectedMachine.status)}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Dimensions</span>
-                    <strong>
-                      {selectedMachine.width ?? 135} × {selectedMachine.height ?? 92} px
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Location</span>
-                    <strong>{selectedMachine.location}</strong>
-                  </div>
-
-                  <div>
-                    <span>Installed On</span>
-                    <strong>{selectedMachine.installedOn}</strong>
-                  </div>
-
-                  <div>
-                    <span>Last Maintenance</span>
-                    <strong>{selectedMachine.lastMaintenance}</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Parameters */}
-            <div className="info-card parameters-card">
-              <h3>Live Parameters</h3>
-
-              <div className="parameter">
-                <div>
-                  <span>Temperature</span>
-                  <strong
-                    className={
-                      selectedMachine.temperature > 80
-                        ? "red-text"
-                        : selectedMachine.temperature > 65
-                        ? "yellow-text"
-                        : "green-text"
-                    }
-                  >
-                    {selectedMachine.temperature} °C
-                  </strong>
-                </div>
-
-                <div className="mini-chart red-chart">╱╲╱╲╲╱╲╱╲</div>
-              </div>
-
-              <div className="parameter">
-                <div>
-                  <span>Vibration</span>
-                  <strong
-                    className={
-                      selectedMachine.vibration > 6
-                        ? "red-text"
-                        : selectedMachine.vibration > 3
-                        ? "yellow-text"
-                        : "green-text"
-                    }
-                  >
-                    {selectedMachine.vibration} mm/s
-                  </strong>
-                </div>
-
-                <div className="mini-chart red-chart">╲╱╲╱╱╲╱╲</div>
-              </div>
-
-              <div className="parameter">
-                <div>
-                  <span>Current</span>
-                  <strong
-                    className={
-                      selectedMachine.current > 12
-                        ? "red-text"
-                        : selectedMachine.current > 10
-                        ? "yellow-text"
-                        : "green-text"
-                    }
-                  >
-                    {selectedMachine.current} A
-                  </strong>
-                </div>
-
-                <div className="mini-chart red-chart">╱╱╲╱╲╲╱</div>
-              </div>
-
-              <div className="parameter-row">
-                <div>
-                  <span>Speed</span>
-                  <strong className="yellow-text">
-                    {selectedMachine.speed.toLocaleString()} RPM
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Runtime</span>
-                  <strong className="green-text">
-                    {selectedMachine.runtime} h
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Health */}
-            <div className="info-card health-card">
-              <h3>Health Score</h3>
-
-              <div className={`health-circle ${healthClass}`}>
-                <div>
-                  <strong>{selectedMachine.health}%</strong>
-
-                  <span>{getStatusLabel(selectedMachine.status)}</span>
-                </div>
-              </div>
-
-              <div className="failure">
-                <span>Failure Probability</span>
-
-                <strong className={healthClass}>
-                  {selectedMachine.failureProbability}%
-                </strong>
-              </div>
-
-              <div className="failure-time">
-                Est. Failure In
-                <strong>{selectedMachine.failureTime}</strong>
-              </div>
-            </div>
-
-            {/* Maintenance Recommendation */}
-            <div className="info-card recommendation-card">
-              <h3>Maintenance Recommendation</h3>
-
-              <div className="recommendation">
-                <strong
-                  className={`recommendation-title ${selectedMachine.status}`}
-                >
-                  ⚠ {selectedMachine.recommendation}
-                </strong>
-
-                <hr />
-
-                <h4>AI Diagnosis</h4>
-
-                <p>{selectedMachine.diagnosis}</p>
-
-                <hr />
-
-                <h4>Recommended Action</h4>
-
-                <p>
-                  {selectedMachine.status === "critical"
-                    ? "Immediate maintenance required."
-                    : selectedMachine.status === "warning"
-                    ? "Maintenance should be scheduled soon."
-                    : "No immediate maintenance action required."}
-                </p>
-
                 <button
-                  className="work-order-button"
                   type="button"
-                  onClick={() => setCurrentPage("Maintenance")}
+                  className="btn-toggle-bottom"
+                  onClick={() => setIsBottomPanelMinimized(true)}
+                  title="Minimize bottom panel to maximize floor blueprint canvas"
                 >
-                  Create Work Order
+                  ▼ Minimize Panel
                 </button>
               </div>
-            </div>
-          </section>
+
+              <div className="bottom-panels-grid">
+                {/* Card 1: Equipment Identity & Fleet Status */}
+                <div className="info-card selected-machine-card">
+                  <div className="machine-card-header">
+                    <div className="machine-header-title">
+                      <span className={`critical-dot ${selectedMachine.status}`}></span>
+                      <strong>{selectedMachine.id}</strong>
+                      <span className="machine-header-sub">{selectedMachine.name}</span>
+                    </div>
+                    <span className={`status-label ${selectedMachine.status}`}>
+                      {getStatusLabel(selectedMachine.status)}
+                    </span>
+                  </div>
+
+                  <div className="detail-list-clean">
+                    <div className="detail-row">
+                      <span>Location</span>
+                      <strong>{selectedMachine.location}</strong>
+                    </div>
+                    <div className="detail-row">
+                      <span>Department</span>
+                      <strong>{selectedMachine.department || "Machining Bay 1"}</strong>
+                    </div>
+                    <div className="detail-row">
+                      <span>Dimensions</span>
+                      <strong>{selectedMachine.width ?? 135} × {selectedMachine.height ?? 92} px</strong>
+                    </div>
+                    <div className="detail-row">
+                      <span>Last Service</span>
+                      <strong>{selectedMachine.lastMaintenance}</strong>
+                    </div>
+                  </div>
+
+                  <div className="fleet-quick-overview">
+                    <span className="fleet-pill green">● {healthyMachines} Running</span>
+                    <span className="fleet-pill yellow">▲ {warningMachines} Warning</span>
+                    <span className="fleet-pill red">♨ {criticalMachines} Critical</span>
+                  </div>
+                </div>
+
+                {/* Card 2: Live Parameters & Tool Wear Progression */}
+                <div className="info-card parameters-card">
+                  <div className="info-card-header-row">
+                    <h3>Live Parameters</h3>
+                    <span className="telemetry-live-tag">● Live Telemetry</span>
+                  </div>
+
+                  <div className="parameter">
+                    <div>
+                      <span>Process Temperature</span>
+                      <strong className={selectedMachine.temperature > 80 ? "red-text" : selectedMachine.temperature > 65 ? "yellow-text" : "green-text"}>
+                        {selectedMachine.temperature} °C
+                      </strong>
+                    </div>
+                    <svg className="param-sparkline" viewBox="0 0 64 22" fill="none">
+                      <path d="M 2 16 Q 16 6, 32 14 T 62 8" stroke={selectedMachine.temperature > 65 ? "#f59e0b" : "#38bdf8"} strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+
+                  <div className="parameter">
+                    <div>
+                      <span>Spindle Vibration RMS</span>
+                      <strong className={selectedMachine.vibration > 4.8 ? "red-text" : selectedMachine.vibration > 3.0 ? "yellow-text" : "green-text"}>
+                        {selectedMachine.vibration} mm/s
+                      </strong>
+                    </div>
+                    <svg className="param-sparkline" viewBox="0 0 64 22" fill="none">
+                      <path d="M 2 12 Q 18 20, 34 8 T 62 14" stroke={selectedMachine.vibration > 3 ? "#ef4444" : "#10b981"} strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+
+                  <div className="parameter">
+                    <div>
+                      <span>Spindle Current (DC+AC)</span>
+                      <strong className={selectedMachine.current > 13.5 ? "red-text" : selectedMachine.current > 10.5 ? "yellow-text" : "green-text"}>
+                        {selectedMachine.current} A
+                      </strong>
+                    </div>
+                    <svg className="param-sparkline" viewBox="0 0 64 22" fill="none">
+                      <path d="M 2 14 Q 20 4, 38 16 T 62 6" stroke={selectedMachine.current > 10.5 ? "#f59e0b" : "#38bdf8"} strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+
+                  <div className="parameter-row">
+                    <div>
+                      <span>Spindle Speed</span>
+                      <strong className="yellow-text">{selectedMachine.speed.toLocaleString()} RPM</strong>
+                    </div>
+                    <div>
+                      <span>Runtime</span>
+                      <strong className="green-text">{selectedMachine.runtime} h</strong>
+                    </div>
+                  </div>
+
+                  {/* Tool Flank Wear (NASA MC-510V Benchmark) */}
+                  <div className="parameter-flank-wear">
+                    <div className="flank-wear-header">
+                      <span>Tool Flank Wear (VB)</span>
+                      <strong className={(selectedMachine.flankWearMm ?? 0.08) >= 0.40 ? "red-text" : (selectedMachine.flankWearMm ?? 0.08) >= 0.30 ? "yellow-text" : "green-text"}>
+                        {(selectedMachine.flankWearMm ?? 0.08).toFixed(3)} mm
+                      </strong>
+                    </div>
+                    <div className="wear-bar-track">
+                      <div
+                        className={`wear-bar-fill ${(selectedMachine.flankWearMm ?? 0.08) >= 0.40 ? "critical" : (selectedMachine.flankWearMm ?? 0.08) >= 0.30 ? "warning" : "nominal"}`}
+                        style={{ width: `${Math.min(100, ((selectedMachine.flankWearMm ?? 0.08) / 0.50) * 100)}%` }}
+                      ></div>
+                    </div>
+                    <div className="wear-threshold-markers">
+                      <span>0.00 Initial</span>
+                      <span>0.30 Steady</span>
+                      <span>0.40 Limit</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3: Multimodal AI Health & Recommendation */}
+                <div className="info-card health-recommendation-card">
+                  <div className="health-score-top">
+                    <div className={`health-circle-clean ${healthClass}`}>
+                      <strong>{selectedMachine.health}%</strong>
+                      <span>HEALTH</span>
+                    </div>
+
+                    <div className="health-stats-col">
+                      <div className="health-stat-item">
+                        <span>Failure Probability</span>
+                        <strong className={healthClass}>{selectedMachine.failureProbability}%</strong>
+                      </div>
+                      <div className="health-stat-item">
+                        <span>Remaining Useful Life</span>
+                        <strong>{selectedMachine.failureTime}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="recommendation-content">
+                    <div className="diagnosis-box">
+                      <span className="diagnosis-tag">AI DIAGNOSIS</span>
+                      <p>{selectedMachine.diagnosis}</p>
+                    </div>
+
+                    <div className="rec-action-row">
+                      <button
+                        className="btn-create-wo"
+                        type="button"
+                        onClick={() => setCurrentPage("Maintenance")}
+                      >
+                        + Create Work Order
+                      </button>
+                      <button
+                        className="btn-quick-service"
+                        type="button"
+                        onClick={() => handleResetMaintenance(selectedMachine.id)}
+                        title="Simulate immediate tool replacement and service"
+                      >
+                        🔧 Service Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Add Machine & Equipment Modal */}
           <AddMachineModal

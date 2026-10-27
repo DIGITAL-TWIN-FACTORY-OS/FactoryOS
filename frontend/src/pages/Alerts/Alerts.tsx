@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import "./Alerts.css";
-import type { Machine, Alert as RawAlert } from "../AIAssistant/AIAssistant";
+import type { Machine } from "../../components/AddMachineModal/AddMachineModal";
+import type { Alert as RawAlert } from "../AIAssistant/AIAssistant";
 
 interface AlertItem {
   id: string;
@@ -26,37 +27,51 @@ export const Alerts: React.FC<AlertsProps> = ({
   alerts: initialAlerts,
   onNavigate,
 }) => {
-  // Convert initial alerts to enhanced alert items
-  const [alertList, setAlertList] = useState<AlertItem[]>(() => {
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
+  const [resolvedIds, setResolvedIds] = useState<Map<string, string>>(new Map());
+
+  // Derive alert items dynamically from layout machines
+  const alertList: AlertItem[] = useMemo(() => {
     return initialAlerts.map((a, index) => {
-      // Find corresponding machine if any
+      const id = (a as any).id || `ALT-${1000 + index}`;
       const machineObj = machines.find(
-        (m) => a.machine.toLowerCase().includes(m.id.toLowerCase()) || a.machine.toLowerCase().includes(m.name.toLowerCase())
+        (m) =>
+          a.machine.toLowerCase().includes(m.id.toLowerCase()) ||
+          a.machine.toLowerCase().includes(m.name.toLowerCase())
       );
 
       let sensorDetail = "Operational telemetry recorded";
-      let suggestedAction = "Monitor system parameters.";
-      let machineId = "M-SYS";
+      let suggestedAction = (a as any).recommendation || "Monitor system parameters.";
+      let machineId = (a as any).machineId || "M-SYS";
 
       if (machineObj) {
         machineId = machineObj.id;
-        sensorDetail = `Temp: ${machineObj.temperature}°C | Vib: ${machineObj.vibration} mm/s | Current: ${machineObj.current}A`;
-        suggestedAction = machineObj.recommendation;
+        sensorDetail = `Temp: ${machineObj.temperature}°C | Vib: ${machineObj.vibration} mm/s | Current: ${machineObj.current}A | Tool Wear VB: ${(machineObj.flankWearMm ?? 0.08).toFixed(3)}mm`;
+        suggestedAction = machineObj.recommendation || suggestedAction;
       }
 
+      const isResolved = resolvedIds.has(id);
+      const isAck = acknowledgedIds.has(id);
+      const status: "active" | "acknowledged" | "resolved" = isResolved
+        ? "resolved"
+        : isAck
+        ? "acknowledged"
+        : "active";
+
       return {
-        id: `ALT-${1000 + index}`,
+        id,
         machine: a.machine,
         machineId,
         message: a.message,
         time: a.time,
         type: a.type,
-        status: "active",
+        status,
+        resolvedAt: resolvedIds.get(id),
         sensorDetail,
         suggestedAction,
       };
     });
-  });
+  }, [initialAlerts, machines, acknowledgedIds, resolvedIds]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -91,29 +106,31 @@ export const Alerts: React.FC<AlertsProps> = ({
 
   // Actions
   const handleAcknowledge = (id: string) => {
-    setAlertList((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "acknowledged" } : a))
-    );
+    setAcknowledgedIds((prev) => new Set(prev).add(id));
     showToast(`Alert ${id} acknowledged by operator.`);
   };
 
   const handleResolve = (id: string) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setAlertList((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "resolved", resolvedAt: timeNow } : a))
-    );
+    setResolvedIds((prev) => new Map(prev).set(id, timeNow));
     showToast(`Alert ${id} marked as RESOLVED.`);
   };
 
   const handleAcknowledgeAll = () => {
-    setAlertList((prev) =>
-      prev.map((a) => (a.status === "active" ? { ...a, status: "acknowledged" } : a))
-    );
+    const allActive = alertList.filter((a) => a.status === "active").map((a) => a.id);
+    setAcknowledgedIds((prev) => {
+      const next = new Set(prev);
+      allActive.forEach((id) => next.add(id));
+      return next;
+    });
     showToast("All active alerts acknowledged.");
   };
 
   const handleCreateWorkOrder = (alert: AlertItem) => {
     showToast(`Work order ticket dispatched for ${alert.machine}!`);
+    if (onNavigate) {
+      setTimeout(() => onNavigate("Maintenance"), 800);
+    }
   };
 
   return (
@@ -124,8 +141,8 @@ export const Alerts: React.FC<AlertsProps> = ({
           position: "fixed",
           top: "20px",
           right: "20px",
-          background: "#00b4d8",
-          color: "#07111b",
+          background: "#0284c7",
+          color: "#ffffff",
           padding: "12px 20px",
           borderRadius: "6px",
           fontWeight: 700,
@@ -138,95 +155,109 @@ export const Alerts: React.FC<AlertsProps> = ({
 
       {/* Header Banner */}
       <div className="alerts-header">
-        <div className="alerts-title-group">
-          <div className="alerts-icon-badge">♧</div>
-          <div>
-            <h2>Plant Alerts & Condition Monitoring Center</h2>
-            <span>Real-time anomaly triggers, sensor thresholds, and incident resolution</span>
-          </div>
+        <div>
+          <h2>Condition Alerts & Telemetry Anomalies</h2>
+          <p>
+            Real-time sensor event log dynamically generated from {machines.length} equipment on floor layout.
+          </p>
         </div>
 
-        <div className="alerts-header-actions">
-          {onNavigate && (
+        <div className="alerts-actions-top">
+          {activeCount > 0 && (
             <button
               type="button"
               className="btn-ack-all"
-              onClick={() => onNavigate("Dashboard")}
+              onClick={handleAcknowledgeAll}
             >
-              ⬅ Dashboard
+              ✓ Acknowledge All Active ({activeCount})
             </button>
           )}
-          <button
-            type="button"
-            className="btn-ack-all"
-            onClick={handleAcknowledgeAll}
-          >
-            ✓ Acknowledge All Active
-          </button>
+
+          {onNavigate && (
+            <button
+              type="button"
+              className="btn-link-view"
+              onClick={() => onNavigate("Dashboard")}
+            >
+              ← Floor Blueprint
+            </button>
+          )}
         </div>
       </div>
 
-      {/* KPI Ribbon */}
+      {/* KPI Cards */}
       <div className="alerts-kpi-grid">
-        <div className="alerts-kpi-card">
-          <span>Active Unresolved</span>
-          <strong>{activeCount} Alerts</strong>
-          <small>Awaiting operator inspection</small>
-        </div>
-        <div className="alerts-kpi-card">
-          <span>Critical Severity</span>
-          <strong style={{ color: criticalCount > 0 ? "#ff4d4f" : "#00ffc4" }}>
-            {criticalCount} Critical
+        <div className="alert-kpi-card total">
+          <span className="alert-kpi-label">Active Anomalies</span>
+          <strong className="alert-kpi-val" style={{ color: activeCount > 0 ? "#ef4444" : "#10b981" }}>
+            {activeCount}
           </strong>
-          <small>Requires immediate equipment shutdown</small>
+          <span className="alert-kpi-sub">Real-time floor triggers</span>
         </div>
-        <div className="alerts-kpi-card">
-          <span>Warning Triggers</span>
-          <strong style={{ color: warningCount > 0 ? "#ffb84d" : "#00ffc4" }}>
-            {warningCount} Warnings
-          </strong>
-          <small>Sensor threshold drift</small>
+
+        <div className="alert-kpi-card critical">
+          <span className="alert-kpi-label">Critical Out-of-Spec</span>
+          <strong className="alert-kpi-val">{criticalCount}</strong>
+          <span className="alert-kpi-sub">Immediate action required</span>
         </div>
-        <div className="alerts-kpi-card">
-          <span>Resolved Incidents</span>
-          <strong style={{ color: "#52c41a" }}>{resolvedCount} Resolved</strong>
-          <small>Restored to safe operating limits</small>
+
+        <div className="alert-kpi-card warning">
+          <span className="alert-kpi-label">Warning Advisories</span>
+          <strong className="alert-kpi-val">{warningCount}</strong>
+          <span className="alert-kpi-sub">Within tolerance envelope</span>
+        </div>
+
+        <div className="alert-kpi-card resolved">
+          <span className="alert-kpi-label">Resolved Events</span>
+          <strong className="alert-kpi-val">{resolvedCount}</strong>
+          <span className="alert-kpi-sub">Remediated by staff</span>
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="alerts-filter-bar">
+      {/* Filter and Search Bar */}
+      <div className="alerts-toolbar">
         <div className="alerts-search-box">
+          <span className="search-icon">🔍</span>
           <input
             type="text"
-            className="alerts-search-input"
-            placeholder="🔍 Search alerts by machine, error message, or ID..."
+            placeholder="Search by Machine ID, Name, or Anomaly..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button
+              type="button"
+              className="clear-search"
+              onClick={() => setSearchTerm("")}
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        <select
-          className="alerts-select"
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-        >
-          <option value="all">All Severities ({alertList.length})</option>
-          <option value="critical">Critical Only ({criticalCount})</option>
-          <option value="warning">Warning Only ({warningCount})</option>
-          <option value="info">Info Notices</option>
-        </select>
+        <div className="alerts-filters">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="alert-select"
+          >
+            <option value="all">All Severities</option>
+            <option value="critical">Critical Only</option>
+            <option value="warning">Warning Only</option>
+            <option value="info">Info Only</option>
+          </select>
 
-        <select
-          className="alerts-select"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="all">All Statuses</option>
-          <option value="active">Active ({activeCount})</option>
-          <option value="acknowledged">Acknowledged</option>
-          <option value="resolved">Resolved ({resolvedCount})</option>
-        </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="alert-select"
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active Only</option>
+            <option value="acknowledged">Acknowledged</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
       </div>
 
       {/* Alerts Feed */}
@@ -234,13 +265,19 @@ export const Alerts: React.FC<AlertsProps> = ({
         {filteredAlerts.length === 0 ? (
           <div style={{
             textAlign: "center",
-            padding: "40px",
-            background: "#0d1b2a",
+            padding: "50px 20px",
+            background: "#0e1726",
             borderRadius: "8px",
-            border: "1px solid #203448",
-            color: "#8da4be"
+            border: "1px solid #1e293b",
+            color: "#94a3b8"
           }}>
-            No alerts match the selected search or filter criteria.
+            <div style={{ color: "#10b981", fontSize: "28px", marginBottom: "8px" }}>✓</div>
+            <strong style={{ display: "block", color: "#f8fafc", fontSize: "16px", marginBottom: "4px" }}>
+              Zero Active Anomalies Detected
+            </strong>
+            <span>
+              All {machines.length} machines on the layout floor are operating strictly within nominal temperature, vibration, and cutting load envelopes.
+            </span>
           </div>
         ) : (
           filteredAlerts.map((alert) => (
@@ -254,7 +291,7 @@ export const Alerts: React.FC<AlertsProps> = ({
                   <span className={`alert-type-badge ${alert.type}`}>
                     {alert.type}
                   </span>
-                  <span style={{ fontSize: "0.78rem", color: "#6c8299", fontFamily: "monospace" }}>
+                  <span style={{ fontSize: "0.78rem", color: "#64748b", fontFamily: "monospace" }}>
                     #{alert.id}
                   </span>
                 </div>
@@ -274,7 +311,7 @@ export const Alerts: React.FC<AlertsProps> = ({
                   {alert.suggestedAction && (
                     <div className="alert-context-item">
                       <span>Prescribed Action:</span>
-                      <strong style={{ color: "#90e0ef" }}>{alert.suggestedAction}</strong>
+                      <strong style={{ color: "#38bdf8" }}>{alert.suggestedAction}</strong>
                     </div>
                   )}
                 </div>
@@ -284,7 +321,7 @@ export const Alerts: React.FC<AlertsProps> = ({
                 <div className="alert-state-tag">
                   Status:{" "}
                   <strong style={{
-                    color: alert.status === "resolved" ? "#52c41a" : alert.status === "acknowledged" ? "#ffb84d" : "#ff4d4f",
+                    color: alert.status === "resolved" ? "#10b981" : alert.status === "acknowledged" ? "#f59e0b" : "#ef4444",
                     textTransform: "uppercase"
                   }}>
                     {alert.status}

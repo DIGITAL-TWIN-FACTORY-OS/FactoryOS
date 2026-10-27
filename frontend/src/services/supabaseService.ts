@@ -341,14 +341,21 @@ export async function fetchProfilesFromDb(): Promise<ManagedUser[]> {
  */
 export async function addProfileToDb(user: ManagedUser): Promise<void> {
   try {
-    const dbPayload = {
+    const dbPayload: any = {
       email: user.email,
       full_name: user.name,
       role: user.role,
       department: user.department,
     };
-    const { error } = await supabase.from("profiles").insert(dbPayload);
-    if (error) console.warn("Supabase profile insert error:", error.message);
+    // Include id if it exists
+    if (user.id) dbPayload.id = user.id;
+
+    const { error } = await supabase.from("profiles").upsert(dbPayload, { onConflict: "email" });
+    if (error) {
+      console.warn("Supabase profile upsert error:", error.message);
+      // Fallback try simple insert
+      await supabase.from("profiles").insert(dbPayload);
+    }
   } catch (err) {
     console.warn("Supabase profile insert error:", err);
   }
@@ -395,7 +402,8 @@ export async function updateProfileRoleInDb(
  */
 export async function deleteProfileFromDb(userId: string): Promise<void> {
   try {
-    await supabase.from("profiles").delete().eq("id", userId);
+    const { error } = await supabase.from("profiles").delete().or(`id.eq.${userId},email.eq.${userId}`);
+    if (error) console.warn("Supabase profile delete error:", error.message);
   } catch (err) {
     console.warn("Supabase profile delete error:", err);
   }
@@ -639,4 +647,145 @@ export async function seedDefaultProfilesToDb(): Promise<ManagedUser[]> {
     await addProfileToDb(u);
   }
   return DEFAULT_PLANT_PROFILES;
+}
+
+
+/**
+ * 10. Room & Factory Layout Preset Configurations with Database & Local Persistence
+ */
+export interface LayoutPreset {
+  id: string;
+  name: string;
+  description: string;
+  roomFilter?: string; // "all", "machining", "robotics", "thermal"
+  positions: Record<string, { x: string; y: string; width?: number; height?: number; isLocked?: boolean }>;
+  isDefault?: boolean;
+  createdAt: string;
+}
+
+export const DEFAULT_LAYOUT_PRESETS: LayoutPreset[] = [
+  {
+    id: "preset-all",
+    name: "🏭 Main Plant Floor (All Equipment)",
+    description: "Default full plant floor layout with all production bays and digital twin equipment.",
+    roomFilter: "all",
+    isDefault: true,
+    createdAt: "2026-10-28",
+    positions: {
+      "M-01": { x: "8%", y: "12%", width: 145, height: 95 },
+      "M-02": { x: "28%", y: "12%", width: 135, height: 92 },
+      "M-03": { x: "48%", y: "12%", width: 135, height: 92 },
+      "M-04": { x: "68%", y: "12%", width: 135, height: 92 },
+      "M-05": { x: "24%", y: "44%", width: 135, height: 92 },
+      "M-07": { x: "54%", y: "44%", width: 135, height: 92 },
+      "M-09": { x: "26%", y: "74%", width: 135, height: 92 },
+      "M-11": { x: "50%", y: "74%", width: 140, height: 95 },
+    },
+  },
+  {
+    id: "preset-machining",
+    name: "⚙ Machining Bay 1 (Heavy Milling & Turning)",
+    description: "High-precision machining cell focusing on CNC Milling, Turning, Drilling, and Surface Grinding.",
+    roomFilter: "machining",
+    isDefault: true,
+    createdAt: "2026-10-28",
+    positions: {
+      "M-01": { x: "15%", y: "25%", width: 155, height: 105 },
+      "M-02": { x: "40%", y: "25%", width: 145, height: 100 },
+      "M-03": { x: "65%", y: "25%", width: 145, height: 100 },
+      "M-04": { x: "40%", y: "65%", width: 145, height: 100 },
+    },
+  },
+  {
+    id: "preset-robotics",
+    name: "🤖 Robotics & Arc Welding Cell",
+    description: "Automated fabrication and welding line featuring robotic arms and joining stations.",
+    roomFilter: "robotics",
+    isDefault: true,
+    createdAt: "2026-10-28",
+    positions: {
+      "M-05": { x: "25%", y: "35%", width: 160, height: 110 },
+      "M-07": { x: "60%", y: "35%", width: 160, height: 110 },
+      "M-11": { x: "42%", y: "70%", width: 150, height: 100 },
+    },
+  },
+  {
+    id: "preset-thermal",
+    name: "♨ Thermal Treatment & Packaging Bay",
+    description: "High-temperature induction furnace and final packaging logistics cell.",
+    roomFilter: "thermal",
+    isDefault: true,
+    createdAt: "2026-10-28",
+    positions: {
+      "M-09": { x: "30%", y: "40%", width: 165, height: 115 },
+      "M-11": { x: "65%", y: "40%", width: 155, height: 105 },
+    },
+  },
+];
+
+const PRESETS_STORAGE_KEY = "factoryos_room_presets_cache_v1";
+
+export async function fetchLayoutPresetsFromDb(): Promise<LayoutPreset[]> {
+  try {
+    const { data, error } = await supabase
+      .from("layout_presets")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const parsed: LayoutPreset[] = data.map((d: any) => ({
+        id: d.id,
+        name: d.preset_name || d.name,
+        description: d.description || "",
+        roomFilter: d.room_filter || "all",
+        positions: typeof d.positions === "string" ? JSON.parse(d.positions) : (d.positions || {}),
+        isDefault: d.is_default || false,
+        createdAt: d.created_at || new Date().toISOString(),
+      }));
+      localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(parsed));
+      return parsed;
+    }
+  } catch (err) {
+    console.warn("Supabase layout presets query note:", err);
+  }
+
+  // Fallback to local cache or defaults
+  try {
+    const cached = localStorage.getItem(PRESETS_STORAGE_KEY);
+    if (cached) {
+      const list = JSON.parse(cached);
+      if (Array.isArray(list) && list.length > 0) return list;
+    }
+  } catch (e) {
+    // Ignore
+  }
+
+  localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(DEFAULT_LAYOUT_PRESETS));
+  return DEFAULT_LAYOUT_PRESETS;
+}
+
+export async function saveLayoutPresetToDb(preset: LayoutPreset): Promise<void> {
+  try {
+    const payload = {
+      id: preset.id,
+      preset_name: preset.name,
+      description: preset.description,
+      room_filter: preset.roomFilter || "all",
+      positions: preset.positions,
+      is_default: preset.isDefault || false,
+    };
+    const { error } = await supabase.from("layout_presets").upsert(payload, { onConflict: "id" });
+    if (error) console.warn("Supabase preset save note:", error.message);
+  } catch (err) {
+    console.warn("Supabase preset error:", err);
+  }
+
+  // Update local cache
+  try {
+    const cached = await fetchLayoutPresetsFromDb();
+    const updated = [...cached.filter((p) => p.id !== preset.id), preset];
+    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(updated));
+  } catch (e) {
+    // Ignore
+  }
 }

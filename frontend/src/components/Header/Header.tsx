@@ -6,6 +6,8 @@ import UserRoleIcon from "../UserRoleIcon/UserRoleIcon";
 interface HeaderProps {
   userRole: UserRole;
   userName?: string;
+  alerts?: DropdownAlert[];
+  onToggleSidebar?: () => void;
   onSignOut: () => void;
   onNavigate?: (page: string) => void;
 }
@@ -29,6 +31,8 @@ interface DropdownMessage {
 function Header({
   userRole,
   userName,
+  alerts,
+  onToggleSidebar,
   onSignOut,
   onNavigate,
 }: HeaderProps) {
@@ -96,51 +100,16 @@ function Header({
 
   const currentUser = roleDetails[userRole];
 
-  // Active Alerts List for Dropdown
-  const dropdownAlerts: DropdownAlert[] = [
-    {
-      id: "ALT-1",
-      machine: "M-09 Heat Treatment",
-      message: "Temperature exceeded safe limit (91.8°C)",
-      time: "11:40 AM",
-      type: "critical",
-    },
-    {
-      id: "ALT-2",
-      machine: "M-11 Packaging",
-      message: "Severe vibration level detected (8.2 mm/s)",
-      time: "11:38 AM",
-      type: "critical",
-    },
-    {
-      id: "ALT-3",
-      machine: "M-07 Welding Robot",
-      message: "High current detected on torch manifold (15.8A)",
-      time: "11:32 AM",
-      type: "warning",
-    },
-    {
-      id: "ALT-4",
-      machine: "M-04 Grinding",
-      message: "Spindle preventive maintenance due in 8 hrs",
-      time: "11:20 AM",
-      type: "warning",
-    },
-    {
-      id: "ALT-5",
-      machine: "M-15 Conveyor",
-      message: "Speed fluctuation and belt slip warning",
-      time: "10:40 AM",
-      type: "warning",
-    },
-    {
-      id: "ALT-6",
-      machine: "M-21 Air Compressor",
-      message: "Scheduled intake filter service window",
-      time: "10:55 AM",
-      type: "info",
-    },
-  ];
+  // Real-time Dynamic Alerts derived from layout equipment
+  const dropdownAlerts: DropdownAlert[] = (alerts && alerts.length > 0)
+    ? alerts.map((a: any, idx: number) => ({
+        id: a.id || (`ALT-${idx + 1}`),
+        machine: a.machine || a.machineId || "Equipment",
+        message: a.message,
+        time: a.time || "Live",
+        type: a.type || "warning",
+      }))
+    : [];
 
   // System Notifications / Messages List
   const dropdownMessages: DropdownMessage[] = [
@@ -202,6 +171,19 @@ function Header({
   return (
     <header className="top-header">
       <div className="header-title">
+        {/* Top-left Corner Pop-out Menu Button */}
+        <button
+          type="button"
+          className="header-menu-btn"
+          onClick={onToggleSidebar}
+          title="Toggle Navigation Menu"
+          aria-label="Toggle navigation menu"
+        >
+          <span className="hamburger-line"></span>
+          <span className="hamburger-line"></span>
+          <span className="hamburger-line"></span>
+        </button>
+
         <div className="header-factoryos-mark">
           <svg
             className="header-factoryos-svg"
