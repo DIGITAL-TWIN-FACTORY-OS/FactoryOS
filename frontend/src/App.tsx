@@ -131,6 +131,28 @@ function App() {
   // Keep machineList synchronized with the active preset machines
   const machineList: Machine[] = currentFloorMachines;
 
+  // Comprehensive fleet of all machines added across all rooms & layout presets
+  const allFactoryMachines: Machine[] = useMemo(() => {
+    const map = new Map<string, Machine>();
+    (layoutPresets || []).forEach((preset) => {
+      (preset.machines || []).forEach((m) => {
+        if (!map.has(m.id)) {
+          map.set(m.id, {
+            ...m,
+            location: m.location || preset.name,
+          });
+        }
+      });
+    });
+    (currentFloorMachines || []).forEach((m) => {
+      map.set(m.id, {
+        ...m,
+        location: m.location || activePreset?.name || "Factory Operational Floor",
+      });
+    });
+    return Array.from(map.values());
+  }, [layoutPresets, currentFloorMachines, activePreset]);
+
   // Helper to update machines strictly on the active preset with DB persistence
   const updateActivePresetMachines = (updater: (prevMachines: Machine[]) => Machine[]) => {
     setLayoutPresets((prev) => {
@@ -346,13 +368,31 @@ function App() {
   };
 
   const handleAddMachine = async (machineData: Partial<Machine>) => {
-    const saved = await addMachineToDb(machineData);
+    // Ensure unique ID that never collides with any existing machine in this layout
+    const currentList = currentFloorMachines || [];
+    const currentIds = new Set(currentList.map((m) => m.id.toUpperCase()));
+
+    let resolvedId = machineData.id?.trim();
+    if (!resolvedId || currentIds.has(resolvedId.toUpperCase())) {
+      let n = 1;
+      while (currentIds.has(`M-${n < 10 ? "0" + n : n}`)) {
+        n++;
+      }
+      resolvedId = `M-${n < 10 ? "0" + n : n}`;
+    }
+
+    const payload = {
+      ...machineData,
+      id: resolvedId,
+    };
+
+    const saved = await addMachineToDb(payload);
     setLayoutPresets((prev) => {
       const updated = prev.map((p) =>
         p.id === activePreset.id
           ? {
               ...p,
-              machines: [saved, ...p.machines.filter((m) => m.id !== saved.id)],
+              machines: [...(p.machines || []).filter((m) => m.id !== saved.id), saved],
             }
           : p
       );
@@ -576,6 +616,89 @@ function App() {
   const isDashboard = currentPage.toLowerCase() === "dashboard";
   const isAdmin = userRole === "admin";
 
+  // Factory Floor Height state & Admin Resizing (fills screen by default, adjustable by admin)
+  const getScreenFillHeight = () => {
+    if (typeof window === "undefined") return 720;
+    return Math.max(520, Math.min(2400, Math.round(window.innerHeight - 130)));
+  };
+
+  const [floorHeight, setFloorHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("factoryos_floor_height");
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 360 && parsed <= 2400) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return getScreenFillHeight();
+  });
+
+  const [isDraggingFloorHeight, setIsDraggingFloorHeight] = useState<boolean>(false);
+  const heightDragStartYRef = useRef<number | null>(null);
+  const heightDragStartHeightRef = useRef<number>(720);
+
+  const handleHeightResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isAdmin) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+    setIsDraggingFloorHeight(true);
+    heightDragStartYRef.current = e.clientY;
+    heightDragStartHeightRef.current = floorHeight;
+  };
+
+  const handleHeightResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingFloorHeight || heightDragStartYRef.current === null) return;
+    e.preventDefault();
+    const delta = e.clientY - heightDragStartYRef.current;
+    const newHeight = Math.max(380, Math.min(2400, Math.round(heightDragStartHeightRef.current + delta)));
+    setFloorHeight(newHeight);
+  };
+
+  const handleHeightResizePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingFloorHeight) return;
+    e.preventDefault();
+    setIsDraggingFloorHeight(false);
+    heightDragStartYRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    try {
+      localStorage.setItem("factoryos_floor_height", String(floorHeight));
+    } catch {}
+  };
+
+  const handleAdjustFloorHeight = (delta: number) => {
+    setFloorHeight((prev) => {
+      const next = Math.max(380, Math.min(2400, prev + delta));
+      try {
+        localStorage.setItem("factoryos_floor_height", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleFillScreenHeight = () => {
+    const fillHeight = getScreenFillHeight();
+    setFloorHeight(fillHeight);
+    setIsBottomPanelMinimized(true);
+    try {
+      localStorage.setItem("factoryos_floor_height", String(fillHeight));
+    } catch {}
+  };
+
+  const handleResetFloorHeight = () => {
+    const compactH = 520;
+    setFloorHeight(compactH);
+    try {
+      localStorage.setItem("factoryos_floor_height", String(compactH));
+    } catch {}
+  };
+
 
 
   const updateActivePresetBlueprint = async (updates: Partial<LayoutPreset>) => {
@@ -694,16 +817,19 @@ function App() {
     machineId: string
   ) => {
     if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
 
     setSelectedMachineId(machineId);
+    setIsBottomPanelMinimized(false);
 
     // Only draggable by Admin in Layout Mode, when on Factory Layout (not Dashboard), and if the machine is not locked!
     if (!isAdmin || isDashboard || !isLayoutMode) return;
 
     const target = machineList.find((m) => m.id === machineId);
     if (!target || target.isLocked) return;
+
+    // Prevent default and stop propagation ONLY when actually initiating drag
+    e.preventDefault();
+    e.stopPropagation();
 
     if (!factoryFloorRef.current) return;
     const rect = factoryFloorRef.current.getBoundingClientRect();
@@ -1106,9 +1232,20 @@ function App() {
         />
       ) : currentPage === "AI Assistant" ? (
         <AIAssistant
-          machines={machineList}
+          machines={allFactoryMachines}
           alerts={alerts}
-          onNavigate={setCurrentPage}
+          onNavigate={(page, machineId) => {
+            setCurrentPage(page);
+            if (machineId) {
+              setSelectedMachineId(machineId);
+              setIsBottomPanelMinimized(false);
+            }
+          }}
+          onResetMaintenance={handleResetMaintenance}
+          onCloneMachine={handleCloneMachine}
+          onSetTimeMultiplier={setTimeMultiplier}
+          timeMultiplier={timeMultiplier}
+          activePresetName={activePreset?.name}
         />
       ) : currentPage === "Reports" ? (
         <Reports
@@ -1145,6 +1282,10 @@ function App() {
           <section
             className={`factory-area ${isLayoutMode ? "layout-mode-active" : ""}`}
             ref={factoryFloorRef}
+            style={{
+              height: `${floorHeight}px`,
+              minHeight: `${floorHeight}px`,
+            }}
             onPointerMove={handleFloorPointerMove}
             onPointerUp={handleFloorPointerUp}
           >
@@ -1893,7 +2034,6 @@ function App() {
             {/* Floor Toolbar */}
             <div className="factory-toolbar">
               <div className="factory-toolbar-title">
-                <span className="factory-toolbar-icon">{isDashboard ? "▦" : "▥"}</span>
                 <div>
                   <strong>
                     {isDashboard
@@ -1901,13 +2041,15 @@ function App() {
                       : "Factory Layout & Floor Planner"}
                   </strong>
                   <span>
-                    {isDashboard
-                      ? `${machineList.length} machines monitored • ${healthyMachines} running, ${warningMachines} warning, ${criticalMachines} critical`
-                      : `${machineList.length} machines deployed • ${
-                          isLayoutMode
-                            ? "Layout Mode Active (Movable & Resizable)"
-                            : "Floor Locked (Click to Edit)"
-                        }`}
+                    {isDashboard ? (
+                      <>
+                        <strong>{machineList.length} machines monitored</strong> • {healthyMachines} running, {warningMachines} warning, {criticalMachines} critical
+                      </>
+                    ) : (
+                      <>
+                        <strong>{machineList.length} machines deployed</strong> • {isLayoutMode ? "Layout Mode Active (Movable & Resizable)" : "Floor Locked (Click to Edit)"}
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -1962,6 +2104,46 @@ function App() {
                     </button>
                   )}
                 </div>
+
+                {/* Admin Floor Height Controls */}
+                {isAdmin && (
+                  <div className="toolbar-floor-height-controls" title="Admin floor height controls">
+                    <span className="height-control-label">Height:</span>
+                    <button
+                      type="button"
+                      className="btn-floor-height-step"
+                      onClick={() => handleAdjustFloorHeight(-60)}
+                      title="Decrease floor height (-60px)"
+                    >
+                      －
+                    </button>
+                    <span className="floor-height-badge">{floorHeight}px</span>
+                    <button
+                      type="button"
+                      className="btn-floor-height-step"
+                      onClick={() => handleAdjustFloorHeight(60)}
+                      title="Increase floor height (+60px)"
+                    >
+                      ＋
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-floor-height-fill"
+                      onClick={handleFillScreenHeight}
+                      title="Fill available screen height"
+                    >
+                      ⛶ Fill Screen
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-floor-height-reset"
+                      onClick={handleResetFloorHeight}
+                      title="Reset floor height to compact (520px)"
+                    >
+                      ↺
+                    </button>
+                  </div>
+                )}
 
                 {/* 3. Add Machine to This Layout */}
                 {!isDashboard && isAdmin && (
@@ -2048,12 +2230,34 @@ function App() {
               </div>
             </div>
 
-            
+            {/* Draggable Floor Height Splitter Handle (Admin Only) */}
+            {isAdmin && (
+              <div
+                className={`floor-height-drag-bar ${isDraggingFloorHeight ? "dragging" : ""}`}
+                onPointerDown={handleHeightResizePointerDown}
+                onPointerMove={handleHeightResizePointerMove}
+                onPointerUp={handleHeightResizePointerUp}
+                onPointerCancel={handleHeightResizePointerUp}
+                title="Click and drag up or down to adjust floor height"
+              >
+                <div className="drag-bar-grip">
+                  <span className="drag-bar-dots">══════</span>
+                  <span className="drag-bar-label">↕ Resize Floor ({floorHeight}px)</span>
+                  <span className="drag-bar-dots">══════</span>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* ALERT PANEL (Collapsible to expand blueprint) */}
           {isAlertsPanelOpen && (
-            <section className="alerts-panel">
+            <section
+              className="alerts-panel"
+              style={{
+                height: `${floorHeight}px`,
+                minHeight: `${floorHeight}px`,
+              }}
+            >
               <div className="panel-heading">
                 <strong>Live Alerts ({alerts.length})</strong>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -2149,8 +2353,11 @@ function App() {
                   <div className="machine-card-header">
                     <div className="machine-header-title">
                       <span className={`critical-dot ${selectedMachine.status}`}></span>
-                      <strong>{selectedMachine.id}</strong>
-                      <span className="machine-header-sub">{selectedMachine.name}</span>
+                      <span className="machine-header-title-text">
+                        <strong>{selectedMachine.id}</strong>
+                        <span className="machine-header-hyphen">-</span>
+                        <span className="machine-header-name">{selectedMachine.name}</span>
+                      </span>
                     </div>
                     <span className={`status-label ${selectedMachine.status}`}>
                       {getStatusLabel(selectedMachine.status)}
@@ -2314,6 +2521,7 @@ function App() {
             onClose={() => setShowAddMachineModal(false)}
             onAddMachine={handleAddMachine}
             existingCount={currentFloorMachines.length}
+            existingMachines={currentFloorMachines}
           />
         </div>
       )}

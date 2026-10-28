@@ -187,3 +187,122 @@ export function predictMachineHealthScore(input: MachineSensorsInput): HealthPre
     },
   };
 }
+
+/**
+ * NASA Ames & UC Berkeley MC-510V Machine Learning Model Metadata & Specifications
+ * Based on 16 milling experiment runs, 9,000+ cutting cycles, and AI4I dataset
+ */
+export interface ModelDatasetSpecs {
+  modelName: string;
+  architecture: string;
+  trainingDatasets: string[];
+  r2Health: number;
+  maeHealth: number;
+  r2FlankWearVB: number;
+  maeFlankWearVB: number;
+  criticalFailureThresholdVB: number;
+  featureImportances: { feature: string; weightPercent: number; description: string }[];
+  wearStages: { stage: string; range: string; description: string }[];
+}
+
+export function getModelDatasetSpecs(): ModelDatasetSpecs {
+  return {
+    modelName: "NASA Ames MC-510V Multimodal Health & Wear Engine",
+    architecture: "Ensemble: Random Forest Regressor (500 trees) + Gradient Boosting Regressor (300 estimators)",
+    trainingDatasets: [
+      "NASA Ames & UC Berkeley MC-510V High-Speed Milling Dataset (Spindle currents, Vibration, Acoustic Emission)",
+      "AI4I 2020 Predictive Maintenance Dataset (10,000 industrial machine operational cycles)",
+    ],
+    r2Health: 0.841,
+    maeHealth: 9.46,
+    r2FlankWearVB: 0.742,
+    maeFlankWearVB: 0.0768,
+    criticalFailureThresholdVB: 0.45,
+    featureImportances: [
+      {
+        feature: "Spindle Motor DC Current (smcDC_mean)",
+        weightPercent: 59.1,
+        description: "Primary indicator of tool edge friction, chip resistance, and mechanical cutting torque",
+      },
+      {
+        feature: "Spindle Vibration RMS (vib_spindle_rms)",
+        weightPercent: 8.9,
+        description: "High-frequency bearing degradation, tool unbalance, and spindle runout harmonics",
+      },
+      {
+        feature: "Acoustic Emission Spindle (ae_spindle_rms)",
+        weightPercent: 6.2,
+        description: "Micro-crack formation, grain shear, and insert edge micro-chipping (0.05 - 0.45 V RMS)",
+      },
+      {
+        feature: "AC-to-DC Current Ratio (current_ac_to_dc)",
+        weightPercent: 4.9,
+        description: "Electromechanical torque ripple and motor slip dynamics under cutting load",
+      },
+      {
+        feature: "Table Vibration RMS (vib_table_rms)",
+        weightPercent: 4.2,
+        description: "Workpiece chatter and dynamic structural deflection",
+      },
+      {
+        feature: "Process Temperature Gradient (Delta T)",
+        weightPercent: 3.8,
+        description: "Frictional dissipation and coolant lubrication breakdown (>65°C acceleration)",
+      },
+    ],
+    wearStages: [
+      {
+        stage: "Initial Break-In Wear",
+        range: "VB < 0.15 mm",
+        description: "Sharp cutting edge, optimal surface finish, stable nominal power consumption",
+      },
+      {
+        stage: "Steady-State Linear Wear",
+        range: "0.15 ≤ VB < 0.35 mm",
+        description: "Uniform abrasive wear on tool flank, predictable RUL, optimal operating window",
+      },
+      {
+        stage: "Accelerated Severe Wear",
+        range: "0.35 ≤ VB < 0.45 mm",
+        description: "Crater wear micro-fractures, elevated spindle current & vibration, maintenance required",
+      },
+      {
+        stage: "Critical Tool Failure",
+        range: "VB ≥ 0.45 mm",
+        description: "Catastrophic chipping risk, thermal binding, emergency machine shutdown required",
+      },
+    ],
+  };
+}
+
+/**
+ * What-If scenario simulation: calculates the effect of parameter adjustments
+ */
+export function predictWhatIfScenario(
+  baseline: MachineSensorsInput,
+  adjustments: Partial<MachineSensorsInput>
+): {
+  before: HealthPredictionResult;
+  after: HealthPredictionResult;
+  deltaHealth: number;
+  deltaRULHours: number;
+  summary: string;
+} {
+  const before = predictMachineHealthScore(baseline);
+  const after = predictMachineHealthScore({ ...baseline, ...adjustments });
+  const deltaHealth = Number((after.healthScore - before.healthScore).toFixed(1));
+  const deltaRULHours = after.remainingUsefulLifeHours - before.remainingUsefulLifeHours;
+
+  let summary = "";
+  if (deltaHealth > 15) {
+    summary = `Significant Improvement: Health increases by +${deltaHealth}% and tool life extends by +${deltaRULHours} hours.`;
+  } else if (deltaHealth > 0) {
+    summary = `Positive Effect: Health improves by +${deltaHealth}% (+${deltaRULHours} hours RUL).`;
+  } else if (deltaHealth < -15) {
+    summary = `High Risk Condition: Health drops by ${deltaHealth}%, accelerating tool failure by ${Math.abs(deltaRULHours)} hours.`;
+  } else {
+    summary = `Minor Effect: Health changes by ${deltaHealth}% (${deltaRULHours >= 0 ? "+" : ""}${deltaRULHours} hours RUL).`;
+  }
+
+  return { before, after, deltaHealth, deltaRULHours, summary };
+}

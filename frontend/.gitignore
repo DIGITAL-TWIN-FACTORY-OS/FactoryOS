@@ -1,3 +1,25 @@
+# Environment & Secrets (CRITICAL SECURITY)
+.env
+.env.*
+*.env
+*.env.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# Sensitive keys, certificates, & credentials
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+*credentials*
+*secret*
+service-account*.json
+
 # Logs
 logs
 *.log
@@ -7,6 +29,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies and build output
 node_modules
 dist
 dist-ssr
@@ -15,11 +38,12 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.env.local

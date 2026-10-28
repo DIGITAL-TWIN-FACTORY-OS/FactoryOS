@@ -320,23 +320,36 @@ interface AddMachineModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddMachine: (machine: Machine) => void;
-  existingCount: number;
+  existingCount?: number;
+  existingMachines?: Machine[];
 }
+
+export const getNextAvailableMachineId = (machines: Machine[] = [], prefix = "M"): string => {
+  const existingIds = new Set(machines.map((m) => (m.id || "").trim().toUpperCase()));
+  let n = 1;
+  while (existingIds.has(`${prefix}-${n < 10 ? "0" + n : n}`)) {
+    n++;
+  }
+  return `${prefix}-${n < 10 ? "0" + n : n}`;
+};
 
 export const AddMachineModal: React.FC<AddMachineModalProps> = ({
   isOpen,
   onClose,
   onAddMachine,
-  existingCount,
+  existingMachines = [],
 }) => {
   const [activeTab, setActiveTab] = useState<"catalog" | "custom">("catalog");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
+  // Dynamic next available non-colliding machine ID
+  const nextAvailableId = useMemo(() => {
+    return getNextAvailableMachineId(existingMachines);
+  }, [existingMachines, isOpen]);
+
   // Custom Machine Form State
-  const nextNumber = existingCount + 1;
-  const defaultCustomId = `M-${nextNumber < 10 ? "0" + nextNumber : nextNumber}`;
-  const [customId, setCustomId] = useState(defaultCustomId);
+  const [customId, setCustomId] = useState(nextAvailableId);
   const [customName, setCustomName] = useState("");
   const [customCategory, setCustomCategory] = useState("Machining");
   const [customIcon, setCustomIcon] = useState("⚙");
@@ -347,6 +360,14 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
   const [customCurrent, setCustomCurrent] = useState("8.0");
   const [customSpeed, setCustomSpeed] = useState("1400");
   const [customHealth, setCustomHealth] = useState("95");
+
+  // Reset custom form with fresh unique ID when modal is opened
+  React.useEffect(() => {
+    if (isOpen) {
+      setCustomId(getNextAvailableMachineId(existingMachines));
+      setCustomName("");
+    }
+  }, [isOpen, existingMachines]);
 
   const categories = [
     "All",
@@ -377,12 +398,15 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
   if (!isOpen) return null;
 
   const handleAddPreset = (preset: EquipmentPreset) => {
-    const nextId = `M-${(existingCount + 1) < 10 ? "0" + (existingCount + 1) : existingCount + 1}`;
+    const nextId = getNextAvailableMachineId(existingMachines);
     
-    // Stagger initial placement on the layout floor
-    const staggerIndex = existingCount % 8;
-    const defaultX = `${15 + (staggerIndex % 4) * 22}%`;
-    const defaultY = `${20 + Math.floor(staggerIndex / 4) * 35}%`;
+    // Spacious multi-row staggered placement across the layout floor (columns 0..3, rows 0..2)
+    const count = existingMachines.length;
+    const col = count % 4;
+    const row = Math.floor(count / 4) % 3;
+    const cycle = Math.floor(count / 12);
+    const defaultX = `${12 + col * 22 + (cycle * 2.5)}%`;
+    const defaultY = `${18 + row * 26 + (cycle * 2.5)}%`;
 
     // Multimodal AI Health Score Prediction
     const aiPrediction = predictMachineHealthScore({
@@ -428,9 +452,12 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
       return;
     }
 
-    const staggerIndex = existingCount % 8;
-    const defaultX = `${18 + (staggerIndex % 4) * 20}%`;
-    const defaultY = `${25 + Math.floor(staggerIndex / 4) * 30}%`;
+    const count = existingMachines.length;
+    const col = count % 4;
+    const row = Math.floor(count / 4) % 3;
+    const cycle = Math.floor(count / 12);
+    const defaultX = `${14 + col * 22 + (cycle * 2.5)}%`;
+    const defaultY = `${20 + row * 26 + (cycle * 2.5)}%`;
 
     const parsedTemp = parseFloat(customTemp) || 50.0;
     const parsedVib = parseFloat(customVib) || 2.0;
@@ -446,8 +473,10 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
       runtime: 5.0,
     });
 
+    const resolvedId = customId.trim() || nextAvailableId;
+
     const newMachine: Machine = {
-      id: customId.trim() || defaultCustomId,
+      id: resolvedId,
       name: customName.trim(),
       status: customStatus || aiPrediction.status,
       x: defaultX,
